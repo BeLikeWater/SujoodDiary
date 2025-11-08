@@ -138,11 +138,11 @@ export default function PrayerTracker() {
 
     switch (status) {
       case PRAYER_STATUS.PRAYED:
-        return '#10B981'; // Yeşil
-      case PRAYER_STATUS.MISSED:
         return '#EF4444'; // Kırmızı
+      case PRAYER_STATUS.MISSED:
+        return '#1F2937'; // Siyah
       case PRAYER_STATUS.CONGREGATION:
-        return '#3B82F6'; // Mavi
+        return '#10B981'; // Yeşil
       default:
         return '#D1D5DB'; // Boş (açık gri)
     }
@@ -163,8 +163,16 @@ export default function PrayerTracker() {
         onPress={() => handleStarPress(dayIndex, prayerIndex)}
         activeOpacity={0.7}
       >
-        <Text style={[styles.star, { color }]}>
-          {isFilled ? '⭐' : '☆'}
+        <Text style={[
+          styles.star, 
+          { 
+            color: isFilled ? color : '#D1D5DB',
+            textShadowColor: isFilled ? color : '#D1D5DB',
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 1
+          }
+        ]}>
+          {isFilled ? '★' : '☆'}
         </Text>
       </TouchableOpacity>
     );
@@ -301,38 +309,50 @@ export default function PrayerTracker() {
             <Text style={styles.modalSubtitle}>Nasıl kıldın?</Text>
 
             <TouchableOpacity
-              style={[styles.modalOption, styles.modalOptionGreen]}
+              style={[styles.modalOption, styles.modalOptionRed]}
               onPress={() => handleStatusSelect(PRAYER_STATUS.PRAYED)}
               activeOpacity={0.8}
             >
-              <Text style={styles.modalStar}>⭐</Text>
+              <Text style={[styles.modalStar, { 
+                color: '#EF4444',
+                textShadowColor: '#EF4444',
+                textShadowOffset: { width: 0, height: 0 },
+                textShadowRadius: 2
+              }]}>★</Text>
               <View style={styles.modalOptionContent}>
                 <Text style={styles.modalOptionTitle}>Namaz Kıldım</Text>
-                <Text style={styles.modalOptionSubtitle}>Evde kıldım</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.modalOption, styles.modalOptionBlue]}
+              style={[styles.modalOption, styles.modalOptionGreen]}
               onPress={() => handleStatusSelect(PRAYER_STATUS.CONGREGATION)}
               activeOpacity={0.8}
             >
-              <Text style={styles.modalStar}>⭐</Text>
+              <Text style={[styles.modalStar, { 
+                color: '#10B981',
+                textShadowColor: '#10B981',
+                textShadowOffset: { width: 0, height: 0 },
+                textShadowRadius: 2
+              }]}>★</Text>
               <View style={styles.modalOptionContent}>
                 <Text style={styles.modalOptionTitle}>Cemaatle Kıldım</Text>
-                <Text style={styles.modalOptionSubtitle}>Camide kıldım</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.modalOption, styles.modalOptionRed]}
+              style={[styles.modalOption, styles.modalOptionBlack]}
               onPress={() => handleStatusSelect(PRAYER_STATUS.MISSED)}
               activeOpacity={0.8}
             >
-              <Text style={styles.modalStar}>⭐</Text>
+              <Text style={[styles.modalStar, { 
+                color: '#1F2937',
+                textShadowColor: '#1F2937',
+                textShadowOffset: { width: 0, height: 0 },
+                textShadowRadius: 2
+              }]}>★</Text>
               <View style={styles.modalOptionContent}>
                 <Text style={styles.modalOptionTitle}>Kılamadım</Text>
-                <Text style={styles.modalOptionSubtitle}>Kazaya kaldı</Text>
               </View>
             </TouchableOpacity>
 
@@ -365,37 +385,57 @@ export default function PrayerTracker() {
 
             <View style={styles.helpModalItem}>
               <View style={styles.helpModalIconContainer}>
-                <Text style={[styles.helpModalStar, { color: '#10B981' }]}>⭐</Text>
-              </View>
-              <View style={styles.helpModalTextContainer}>
-                <Text style={styles.helpModalItemTitle}>Yeşil Yıldız</Text>
-                <Text style={styles.helpModalItemText}>Namaz kıldım (Evde)</Text>
-              </View>
-            </View>
-
-            <View style={styles.helpModalItem}>
-              <View style={styles.helpModalIconContainer}>
-                <Text style={[styles.helpModalStar, { color: '#3B82F6' }]}>⭐</Text>
-              </View>
-              <View style={styles.helpModalTextContainer}>
-                <Text style={styles.helpModalItemTitle}>Mavi Yıldız</Text>
-                <Text style={styles.helpModalItemText}>Cemaatle kıldım (Camide)</Text>
-              </View>
-            </View>
-
-            <View style={styles.helpModalItem}>
-              <View style={styles.helpModalIconContainer}>
-                <Text style={[styles.helpModalStar, { color: '#EF4444' }]}>⭐</Text>
+                <Text style={[styles.helpModalStar, { 
+                  color: '#EF4444',
+                  textShadowColor: '#EF4444',
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 2
+                }]}>★</Text>
               </View>
               <View style={styles.helpModalTextContainer}>
                 <Text style={styles.helpModalItemTitle}>Kırmızı Yıldız</Text>
-                <Text style={styles.helpModalItemText}>Kılamadım (Kazaya kaldı)</Text>
+                <Text style={styles.helpModalItemText}>Namaz Kıldım</Text>
               </View>
             </View>
 
             <View style={styles.helpModalItem}>
               <View style={styles.helpModalIconContainer}>
-                <Text style={[styles.helpModalStar, { color: '#D1D5DB' }]}>☆</Text>
+                <Text style={[styles.helpModalStar, { 
+                  color: '#10B981',
+                  textShadowColor: '#10B981',
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 2
+                }]}>★</Text>
+              </View>
+              <View style={styles.helpModalTextContainer}>
+                <Text style={styles.helpModalItemTitle}>Yeşil Yıldız</Text>
+                <Text style={styles.helpModalItemText}>Cemaatle Kıldım</Text>
+              </View>
+            </View>
+
+            <View style={styles.helpModalItem}>
+              <View style={styles.helpModalIconContainer}>
+                <Text style={[styles.helpModalStar, { 
+                  color: '#1F2937',
+                  textShadowColor: '#1F2937',
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 2
+                }]}>★</Text>
+              </View>
+              <View style={styles.helpModalTextContainer}>
+                <Text style={styles.helpModalItemTitle}>Siyah Yıldız</Text>
+                <Text style={styles.helpModalItemText}>Kılamadım</Text>
+              </View>
+            </View>
+
+            <View style={styles.helpModalItem}>
+              <View style={styles.helpModalIconContainer}>
+                <Text style={[styles.helpModalStar, { 
+                  color: '#D1D5DB',
+                  textShadowColor: '#D1D5DB',
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 1
+                }]}>☆</Text>
               </View>
               <View style={styles.helpModalTextContainer}>
                 <Text style={styles.helpModalItemTitle}>Boş Yıldız</Text>
@@ -670,13 +710,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5',
     borderColor: '#10B981',
   },
-  modalOptionBlue: {
-    backgroundColor: '#DBEAFE',
-    borderColor: '#3B82F6',
-  },
   modalOptionRed: {
     backgroundColor: '#FEE2E2',
     borderColor: '#EF4444',
+  },
+  modalOptionBlack: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#1F2937',
   },
   modalStar: {
     fontSize: 36,
