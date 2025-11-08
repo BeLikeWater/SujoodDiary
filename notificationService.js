@@ -24,24 +24,33 @@ export async function registerForPushNotificationsAsync() {
     });
   }
 
+  // İzin durumunu kontrol et
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  
+  console.log('Mevcut bildirim izni:', existingStatus);
+  
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+    console.log('Yeni bildirim izni:', status);
+  }
+  
+  if (finalStatus !== 'granted') {
+    alert('Bildirim izni verilmedi! Ayarlardan izin vermeniz gerekiyor.');
+    return null;
+  }
+
+  // Sadece fiziksel cihazda push token alınabilir
   if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    try {
+      token = (await Notifications.getExpoPushTokenAsync()).data;
+      console.log('Push Token:', token);
+    } catch (error) {
+      console.log('Push token alınamadı:', error);
     }
-    
-    if (finalStatus !== 'granted') {
-      alert('Bildirim izni verilmedi!');
-      return;
-    }
-    
-    token = (await Notifications.getExpoPushTokenAsync()).data;
-    console.log('Push Token:', token);
   } else {
-    alert('Push notification fiziksel cihazda çalışır!');
+    console.log('Simülatörde çalışıyor - local bildirimler aktif');
   }
 
   return token;
@@ -49,23 +58,33 @@ export async function registerForPushNotificationsAsync() {
 
 // Namaz vakti bildirimi planla
 export async function schedulePrayerNotification(prayerName, hour, minute) {
-  const trigger = {
-    hour: hour,
-    minute: minute,
-    repeats: true, // Her gün tekrarla
-  };
+  try {
+    // iOS ve Android için calendar trigger kullanmalıyız
+    const trigger = {
+      type: 'calendar',
+      hour: parseInt(hour),
+      minute: parseInt(minute),
+      repeats: true,
+    };
 
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: `${prayerName} Vakti! 🕌`,
-      body: `${prayerName} namazı vakti geldi. Namazını kılmayı unutma! 🤲`,
-      sound: true,
-      priority: Notifications.AndroidNotificationPriority.HIGH,
-    },
-    trigger,
-  });
+    console.log(`${prayerName} için bildirim planlanıyor:`, trigger);
 
-  return id;
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `${prayerName} Vakti! 🕌`,
+        body: `${prayerName} namazı vakti geldi. Namazını kılmayı unutma! 🤲`,
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger,
+    });
+
+    console.log(`${prayerName} bildirimi planlandı, ID:`, id);
+    return id;
+  } catch (error) {
+    console.error(`${prayerName} bildirimi planlanamadı:`, error);
+    throw error;
+  }
 }
 
 // Tüm bildirimleri iptal et
@@ -80,6 +99,18 @@ export async function cancelNotification(notificationId) {
 
 // Planlanan bildirimleri listele
 export async function getScheduledNotifications() {
-  const notifications = await Notifications.getAllScheduledNotificationsAsync();
-  return notifications;
+  try {
+    const notifications = await Notifications.getAllScheduledNotificationsAsync();
+    console.log('Planlanan bildirim sayısı:', notifications.length);
+    notifications.forEach((notif, index) => {
+      console.log(`Bildirim ${index + 1}:`, {
+        id: notif.identifier,
+        trigger: notif.trigger,
+      });
+    });
+    return notifications;
+  } catch (error) {
+    console.error('Bildirimler getirilemedi:', error);
+    return [];
+  }
 }

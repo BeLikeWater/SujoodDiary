@@ -9,13 +9,13 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Bildirimler Expo Go'da çalışmadığı için devre dışı
-// import {
-//   registerForPushNotificationsAsync,
-//   schedulePrayerNotification,
-//   cancelAllNotifications,
-//   getScheduledNotifications,
-// } from './notificationService';
+import * as Notifications from 'expo-notifications';
+import {
+  registerForPushNotificationsAsync,
+  schedulePrayerNotification,
+  cancelAllNotifications,
+  getScheduledNotifications,
+} from './notificationService';
 
 const PRAYER_TIMES_DEFAULT = [
   { name: 'Sabah', hour: 6, minute: 0 },
@@ -34,7 +34,7 @@ export default function NotificationSettings() {
 
   useEffect(() => {
     // İzin iste ve bildirim sistemi hazırla
-    // registerForPushNotificationsAsync(); // Expo Go'da çalışmıyor
+    registerForPushNotificationsAsync();
     loadSettings();
   }, []);
 
@@ -72,24 +72,24 @@ export default function NotificationSettings() {
   const saveNotifications = async () => {
     try {
       // Önce tüm bildirimleri iptal et
-      // await cancelAllNotifications();
+      await cancelAllNotifications();
 
       // Her namaz için bildirim planla
-      // for (const prayer of prayerTimes) {
-      //   await schedulePrayerNotification(prayer.name, prayer.hour, prayer.minute);
-      // }
+      for (const prayer of prayerTimes) {
+        await schedulePrayerNotification(prayer.name, prayer.hour, prayer.minute);
+      }
 
       setNotificationsEnabled(true);
       await saveSettings(prayerTimes, true);
       
       Alert.alert(
-        'Ayarlar Kaydedildi!', 
-        'Bildirimler Expo Go\'da çalışmaz. Development build kullanmanız gerekir.\n\nKomut: npx expo run:android'
+        'Başarılı!', 
+        'Namaz vakti bildirimleri ayarlandı.'
       );
       
       // Planlanan bildirimleri kontrol et
-      // const scheduled = await getScheduledNotifications();
-      // console.log('Planlanan bildirimler:', scheduled);
+      const scheduled = await getScheduledNotifications();
+      console.log('Planlanan bildirimler:', scheduled);
     } catch (error) {
       console.error('Bildirim ayarlama hatası:', error);
       Alert.alert('Hata', 'Bildirimler ayarlanamadı!');
@@ -98,12 +98,41 @@ export default function NotificationSettings() {
 
   const disableNotifications = async () => {
     try {
-      // await cancelAllNotifications();
+      await cancelAllNotifications();
       setNotificationsEnabled(false);
       await saveSettings(prayerTimes, false);
       Alert.alert('Başarılı!', 'Bildirim ayarları kapatıldı.');
     } catch (error) {
       console.error('Bildirim kapatma hatası:', error);
+    }
+  };
+
+  const testNotification = async () => {
+    try {
+      const now = new Date();
+      const testTime = new Date(now.getTime() + 10 * 1000); // 10 saniye sonra
+      
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Test Bildirimi 🔔',
+          body: 'Bu bir test bildirimidir. Bildirimler çalışıyor!',
+          sound: true,
+        },
+        trigger: {
+          type: 'timeInterval',
+          seconds: 10,
+          repeats: false,
+        },
+      });
+      
+      Alert.alert(
+        'Test Başarılı!',
+        '10 saniye içinde bir test bildirimi alacaksınız.'
+      );
+      console.log('Test bildirimi planlandı:', id);
+    } catch (error) {
+      console.error('Test bildirimi hatası:', error);
+      Alert.alert('Hata', 'Test bildirimi gönderilemedi!');
     }
   };
 
@@ -115,15 +144,6 @@ export default function NotificationSettings() {
       </View>
 
       <ScrollView style={styles.scrollView}>
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>⚠️ Önemli Bilgi</Text>
-          <Text style={styles.infoText}>
-            Bildirimler şu anda Expo Go'da çalışmamaktadır.{'\n\n'}
-            Bildirimlerin çalışması için "development build" oluşturmanız gerekir.{'\n\n'}
-            Komut: npx expo run:android veya npx expo run:ios
-          </Text>
-        </View>
-
         {prayerTimes.map((prayer, index) => (
           <View key={index} style={styles.prayerTimeCard}>
             <Text style={styles.prayerName}>{prayer.name}</Text>
@@ -132,7 +152,7 @@ export default function NotificationSettings() {
                 <Text style={styles.timeLabel}>Saat</Text>
                 <TextInput
                   style={styles.timeInput}
-                  value={prayer.hour.toString()}
+                  value={prayer.hour}
                   onChangeText={(text) => handleTimeChange(index, 'hour', text)}
                   keyboardType="number-pad"
                   maxLength={2}
@@ -143,10 +163,11 @@ export default function NotificationSettings() {
                 <Text style={styles.timeLabel}>Dakika</Text>
                 <TextInput
                   style={styles.timeInput}
-                  value={prayer.minute.toString().padStart(2, '0')}
+                  value={prayer.minute}
                   onChangeText={(text) => handleTimeChange(index, 'minute', text)}
                   keyboardType="number-pad"
                   maxLength={2}
+                  placeholder="00"
                 />
               </View>
             </View>
@@ -172,6 +193,14 @@ export default function NotificationSettings() {
             <Text style={styles.buttonText}>Bildirimleri Kapat</Text>
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity
+          style={[styles.button, styles.testButton]}
+          onPress={testNotification}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonText}>🔔 Test Bildirimi Gönder (10sn)</Text>
+        </TouchableOpacity>
 
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>ℹ️ Nasıl Çalışır?</Text>
@@ -273,6 +302,9 @@ const styles = StyleSheet.create({
   },
   disableButton: {
     backgroundColor: '#EF4444',
+  },
+  testButton: {
+    backgroundColor: '#3B82F6',
   },
   buttonText: {
     color: '#FFFFFF',
