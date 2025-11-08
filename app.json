@@ -2,7 +2,7 @@
   "expo": {
     "name": "SujoodDiary",
     "slug": "SujoodDiary",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,7 +23,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.SujoodDiary"
+      "bundleIdentifier": "com.anonymous.SujoodDiary",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
