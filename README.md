@@ -1,0 +1,2 @@
+# SujoodDiary
+Namaz takip uygulaması
