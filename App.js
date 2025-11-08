@@ -1,15 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebaseConfig';
 import PrayerTracker from './PrayerTracker';
-import NotificationSettings from './NotificationSettings';
 import HomeScreen from './HomeScreen';
 import ResponsibilitiesScreen from './ResponsibilitiesScreen';
 import QuranScreen from './QuranScreen';
 import ProfileScreen from './ProfileScreen';
 import CharacterCustomizationScreen from './CharacterCustomizationScreen';
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import NotificationSettingsScreen from './screens/NotificationSettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -111,7 +117,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Settings" 
-        component={NotificationSettings}
+        component={SettingsScreen}
         options={{
           tabBarLabel: 'Ayarlar',
           tabBarIcon: '⚙️',
@@ -122,42 +128,93 @@ function TabNavigator() {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.logoEmoji}>🕌</Text>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator>
-        <Stack.Screen 
-          name="Main" 
-          component={TabNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen 
-          name="Profile" 
-          component={ProfileScreen}
-          options={{
-            title: 'Profilim',
-            headerStyle: {
-              backgroundColor: '#8B5CF6',
-            },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
-        />
-        <Stack.Screen 
-          name="CharacterCustomization" 
-          component={CharacterCustomizationScreen}
-          options={{
-            title: 'Karakterimi Özelleştir',
-            headerStyle: {
-              backgroundColor: '#8B5CF6',
-            },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
-        />
+        {user ? (
+          // Authenticated Stack
+          <>
+            <Stack.Screen 
+              name="Main" 
+              component={TabNavigator}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Profile" 
+              component={ProfileScreen}
+              options={{
+                title: 'Profilim',
+                headerStyle: {
+                  backgroundColor: '#8B5CF6',
+                },
+                headerTintColor: '#FFFFFF',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen 
+              name="CharacterCustomization" 
+              component={CharacterCustomizationScreen}
+              options={{
+                title: 'Karakterimi Özelleştir',
+                headerStyle: {
+                  backgroundColor: '#8B5CF6',
+                },
+                headerTintColor: '#FFFFFF',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen 
+              name="Settings" 
+              component={SettingsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="NotificationSettings" 
+              component={NotificationSettingsScreen}
+              options={{ headerShown: false }}
+            />
+          </>
+        ) : (
+          // Auth Stack
+          <>
+            <Stack.Screen 
+              name="Login" 
+              component={LoginScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Register" 
+              component={RegisterScreen}
+              options={{ headerShown: false }}
+            />
+          </>
+        )}
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>
@@ -165,6 +222,21 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  logoEmoji: {
+    fontSize: 72,
+    marginBottom: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
+  },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',

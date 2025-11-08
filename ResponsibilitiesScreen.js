@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
+// import * as ImagePicker from 'expo-image-picker';
+import { ref, set, push } from 'firebase/database';
+import { database, auth } from './firebaseConfig';
 
 const CATEGORIES = [
   { id: 1, name: 'Ev İçi', emoji: '🏡', color: '#10B981', tasks: [
@@ -88,6 +91,56 @@ const CATEGORIES = [
 export default function ResponsibilitiesScreen() {
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   const [completedTasks, setCompletedTasks] = useState(new Set());
+
+  const takePhoto = async (task) => {
+    // Fotoğraf özelliği geçici olarak devre dışı
+    Alert.alert('Yakında! 📸', 'Fotoğraf çekme özelliği yakında eklenecek!');
+    
+    // TODO: expo-image-picker sorunları çözülünce tekrar aktif edilecek
+    /*
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('İzin Gerekli', 'Fotoğraf çekmek için kamera iznine ihtiyacımız var.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          Alert.alert('Hata', 'Giriş yapmalısınız');
+          return;
+        }
+
+        const photoRef = ref(database, `users/${userId}/responsibility_photos`);
+        const newPhotoRef = push(photoRef);
+        
+        await set(newPhotoRef, {
+          taskId: task.id,
+          taskTitle: task.title,
+          taskEmoji: task.emoji,
+          category: selectedCategory.name,
+          photo: result.assets[0].base64,
+          timestamp: new Date().toISOString(),
+          date: new Date().toLocaleDateString('tr-TR'),
+        });
+
+        Alert.alert('Başarılı! 📸', `${task.emoji} ${task.title} fotoğrafı kaydedildi!`);
+      }
+    } catch (error) {
+      console.error('Fotoğraf çekme hatası:', error);
+      Alert.alert('Hata', 'Fotoğraf çekilemedi');
+    }
+    */
+  };
 
   const toggleTask = (taskId) => {
     const newCompleted = new Set(completedTasks);
@@ -195,9 +248,22 @@ export default function ResponsibilitiesScreen() {
                 </Text>
               </View>
             </View>
-            {completedTasks.has(task.id) && (
-              <Text style={styles.taskPoints}>+10 ⭐</Text>
-            )}
+            <View style={styles.taskRight}>
+              {completedTasks.has(task.id) && (
+                <>
+                  <TouchableOpacity
+                    style={styles.photoButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      takePhoto(task);
+                    }}
+                  >
+                    <Text style={styles.photoButtonText}>📸</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.taskPoints}>+10 ⭐</Text>
+                </>
+              )}
+            </View>
           </TouchableOpacity>
         ))}
         <View style={styles.bottomPadding} />
@@ -316,6 +382,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  taskRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  photoButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  photoButtonText: {
+    fontSize: 18,
   },
   checkbox: {
     width: 24,

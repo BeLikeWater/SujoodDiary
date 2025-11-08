@@ -23,8 +23,27 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.SujoodDiary",
-      "buildNumber": "2"
+      "bundleIdentifier": "com.muvasoft.SujoodDiary",
+      "buildNumber": "2",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "firebaseapp.com": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": false
+            },
+            "googleapis.com": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": false
+            },
+            "google.com": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": false
+            }
+          }
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {

@@ -1,7 +1,33 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { signOut } from 'firebase/auth';
+import { auth } from './firebaseConfig';
 
 export default function ProfileScreen({ navigation }) {
+  const handleLogout = async () => {
+    Alert.alert(
+      'Çıkış Yap',
+      'Çıkış yapmak istediğine emin misin?',
+      [
+        {
+          text: 'İptal',
+          style: 'cancel',
+        },
+        {
+          text: 'Çıkış Yap',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut(auth);
+            } catch (error) {
+              Alert.alert('Hata', 'Çıkış yapılamadı');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -12,7 +38,11 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.cardTitle}>🌟 Bilgilerim</Text>
         <View style={styles.infoRow}>
           <Text style={styles.label}>İsim:</Text>
-          <Text style={styles.value}>Küçük Mümin</Text>
+          <Text style={styles.value}>{auth.currentUser?.displayName || 'Küçük Mümin'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.label}>Email:</Text>
+          <Text style={styles.value}>{auth.currentUser?.email}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.label}>Sevap Puanı:</Text>
@@ -33,10 +63,27 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.characterButtonArrow}>→</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity 
+        style={styles.settingsButton}
+        onPress={() => navigation.navigate('Settings')}
+      >
+        <Text style={styles.settingsButtonIcon}>⚙️</Text>
+        <Text style={styles.settingsButtonText}>Ayarlar</Text>
+        <Text style={styles.settingsButtonArrow}>→</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.reportButton}>
         <Text style={styles.reportButtonIcon}>📊</Text>
         <Text style={styles.reportButtonText}>Rapor Merkezi</Text>
         <Text style={styles.reportButtonArrow}>→</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.logoutButton}
+        onPress={handleLogout}
+      >
+        <Text style={styles.logoutButtonIcon}>🚪</Text>
+        <Text style={styles.logoutButtonText}>Çıkış Yap</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -126,6 +173,34 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#FFFFFF',
   },
+  settingsButton: {
+    backgroundColor: '#6366F1',
+    margin: 20,
+    marginTop: 10,
+    padding: 20,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  settingsButtonIcon: {
+    fontSize: 32,
+    marginRight: 15,
+  },
+  settingsButtonText: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  settingsButtonArrow: {
+    fontSize: 24,
+    color: '#FFFFFF',
+  },
   reportButton: {
     backgroundColor: '#3B82F6',
     margin: 20,
@@ -152,6 +227,31 @@ const styles = StyleSheet.create({
   },
   reportButtonArrow: {
     fontSize: 24,
+    color: '#FFFFFF',
+  },
+  logoutButton: {
+    backgroundColor: '#EF4444',
+    margin: 20,
+    marginTop: 10,
+    marginBottom: 40,
+    padding: 20,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  logoutButtonIcon: {
+    fontSize: 24,
+    marginRight: 10,
+  },
+  logoutButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#FFFFFF',
   },
 });
