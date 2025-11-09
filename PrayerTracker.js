@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,107 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const PRAYER_TIMES = [
-  { name: 'Sabah', icon: '🌅' },
-  { name: 'Öğle', icon: '☀️' },
-  { name: 'İkindi', icon: '🌤️' },
-  { name: 'Akşam', icon: '🌆' },
-  { name: 'Yatsı', icon: '🌙' }
-];
+const translations = {
+  tr: {
+    title: 'Namaz Takip',
+    subtitle: 'Namazlarını işaretle! 🕌',
+    week: 'Hafta',
+    thisWeek: 'Bu Hafta',
+    previousWeek: 'Önceki Hafta',
+    nextWeek: 'Sonraki Hafta',
+    help: 'Nasıl Kullanılır?',
+    selectAction: 'Bir işlem seçin',
+    prayed: 'Kıldım',
+    missed: 'Kaza',
+    congregation: 'Cemaatle',
+    clear: 'Temizle',
+    cancel: 'İptal',
+    helpTitle: 'Nasıl Kullanılır?',
+    helpInstruction1: 'Namaz hücresine dokun',
+    helpInstruction2: 'Durumu seç:',
+    helpGreen: 'Yeşil = Kıldım',
+    helpOrange: 'Turuncu = Kaza',
+    helpPurple: 'Mor = Cemaatle',
+    helpClear: 'Temizle = Boş yap',
+    close: 'Kapat',
+    days: {
+      monday: 'Pazartesi',
+      tuesday: 'Salı',
+      wednesday: 'Çarşamba',
+      thursday: 'Perşembe',
+      friday: 'Cuma',
+      saturday: 'Cumartesi',
+      sunday: 'Pazar',
+    },
+    daysShort: {
+      monday: 'Pzt',
+      tuesday: 'Sal',
+      wednesday: 'Çar',
+      thursday: 'Per',
+      friday: 'Cum',
+      saturday: 'Cmt',
+      sunday: 'Paz',
+    },
+    prayers: {
+      fajr: 'Sabah',
+      dhuhr: 'Öğle',
+      asr: 'İkindi',
+      maghrib: 'Akşam',
+      isha: 'Yatsı',
+    },
+  },
+  ar: {
+    title: 'متابعة الصلاة',
+    subtitle: 'حدد صلواتك! 🕌',
+    week: 'الأسبوع',
+    thisWeek: 'هذا الأسبوع',
+    previousWeek: 'الأسبوع السابق',
+    nextWeek: 'الأسبوع القادم',
+    help: 'كيفية الاستخدام؟',
+    selectAction: 'اختر إجراء',
+    prayed: 'صليت',
+    missed: 'قضاء',
+    congregation: 'جماعة',
+    clear: 'مسح',
+    cancel: 'إلغاء',
+    helpTitle: 'كيفية الاستخدام؟',
+    helpInstruction1: 'اضغط على خلية الصلاة',
+    helpInstruction2: 'اختر الحالة:',
+    helpGreen: 'أخضر = صليت',
+    helpOrange: 'برتقالي = قضاء',
+    helpPurple: 'بنفسجي = جماعة',
+    helpClear: 'مسح = فراغ',
+    close: 'إغلاق',
+    days: {
+      monday: 'الاثنين',
+      tuesday: 'الثلاثاء',
+      wednesday: 'الأربعاء',
+      thursday: 'الخميس',
+      friday: 'الجمعة',
+      saturday: 'السبت',
+      sunday: 'الأحد',
+    },
+    daysShort: {
+      monday: 'إثن',
+      tuesday: 'ثلث',
+      wednesday: 'أرب',
+      thursday: 'خمس',
+      friday: 'جمع',
+      saturday: 'سبت',
+      sunday: 'أحد',
+    },
+    prayers: {
+      fajr: 'الفجر',
+      dhuhr: 'الظهر',
+      asr: 'العصر',
+      maghrib: 'المغرب',
+      isha: 'العشاء',
+    },
+  },
+};
 
-const DAYS_OF_WEEK = [
-  { short: 'Pzt', full: 'Pazartesi', emoji: '🌟' },
-  { short: 'Sal', full: 'Salı', emoji: '⭐' },
-  { short: 'Çar', full: 'Çarşamba', emoji: '✨' },
-  { short: 'Per', full: 'Perşembe', emoji: '💫' },
-  { short: 'Cum', full: 'Cuma', emoji: '🌙' },
-  { short: 'Cmt', full: 'Cumartesi', emoji: '🎨' },
-  { short: 'Paz', full: 'Pazar', emoji: '🖼️' }
-];
 
 const PRAYER_STATUS = {
   EMPTY: 'empty',
@@ -39,6 +122,42 @@ export default function PrayerTracker() {
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [prayerData, setPrayerData] = useState({});
   const [weekOffset, setWeekOffset] = useState(0);
+  const [language, setLanguage] = useState('ar');
+
+  useEffect(() => {
+    loadLanguage();
+  }, []);
+
+  const loadLanguage = async () => {
+    try {
+      const savedLanguage = await AsyncStorage.getItem('appLanguage');
+      if (savedLanguage) {
+        setLanguage(savedLanguage);
+      }
+    } catch (error) {
+      console.error('Dil yükleme hatası:', error);
+    }
+  };
+
+  const t = translations[language];
+
+  const PRAYER_TIMES = [
+    { id: 'fajr', name: t.prayers.fajr, icon: '🌅' },
+    { id: 'dhuhr', name: t.prayers.dhuhr, icon: '☀️' },
+    { id: 'asr', name: t.prayers.asr, icon: '🌤️' },
+    { id: 'maghrib', name: t.prayers.maghrib, icon: '🌆' },
+    { id: 'isha', name: t.prayers.isha, icon: '🌙' }
+  ];
+
+  const DAYS_OF_WEEK = [
+    { short: t.daysShort.monday, full: t.days.monday, emoji: '🌟' },
+    { short: t.daysShort.tuesday, full: t.days.tuesday, emoji: '⭐' },
+    { short: t.daysShort.wednesday, full: t.days.wednesday, emoji: '✨' },
+    { short: t.daysShort.thursday, full: t.days.thursday, emoji: '💫' },
+    { short: t.daysShort.friday, full: t.days.friday, emoji: '🌙' },
+    { short: t.daysShort.saturday, full: t.days.saturday, emoji: '🎨' },
+    { short: t.daysShort.sunday, full: t.days.sunday, emoji: '🖼️' }
+  ];
 
   // Bugünün tarihini kontrol et
   const isToday = (date) => {
@@ -210,7 +329,7 @@ export default function PrayerTracker() {
         </TouchableOpacity>
 
         <Text style={styles.headerEmoji}>🕌</Text>
-        <Text style={styles.title}>Secde Günlüğüm</Text>
+        <Text style={styles.title}>{t.title}</Text>
         <Text style={styles.weekRange}>{getWeekRange()}</Text>
         
         {/* Bugün Butonu - Sadece farklı haftadaysa göster */}
@@ -220,7 +339,7 @@ export default function PrayerTracker() {
             onPress={goToCurrentWeek}
             activeOpacity={0.7}
           >
-            <Text style={styles.todayButtonText}>🏠 Bugün</Text>
+            <Text style={styles.todayButtonText}>🏠 {t.thisWeek}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -305,8 +424,8 @@ export default function PrayerTracker() {
           onPress={() => setModalVisible(false)}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🕌 Namaz Durumu</Text>
-            <Text style={styles.modalSubtitle}>Nasıl kıldın?</Text>
+            <Text style={styles.modalTitle}>🕌 {t.selectAction}</Text>
+            <Text style={styles.modalSubtitle}>{selectedCell?.prayer.name}</Text>
 
             <TouchableOpacity
               style={[styles.modalOption, styles.modalOptionRed]}
@@ -320,7 +439,7 @@ export default function PrayerTracker() {
                 textShadowRadius: 2
               }]}>★</Text>
               <View style={styles.modalOptionContent}>
-                <Text style={styles.modalOptionTitle}>Namaz Kıldım</Text>
+                <Text style={styles.modalOptionTitle}>{t.prayed}</Text>
               </View>
             </TouchableOpacity>
 
@@ -336,7 +455,7 @@ export default function PrayerTracker() {
                 textShadowRadius: 2
               }]}>★</Text>
               <View style={styles.modalOptionContent}>
-                <Text style={styles.modalOptionTitle}>Cemaatle Kıldım</Text>
+                <Text style={styles.modalOptionTitle}>{t.congregation}</Text>
               </View>
             </TouchableOpacity>
 
@@ -352,7 +471,7 @@ export default function PrayerTracker() {
                 textShadowRadius: 2
               }]}>★</Text>
               <View style={styles.modalOptionContent}>
-                <Text style={styles.modalOptionTitle}>Kılamadım</Text>
+                <Text style={styles.modalOptionTitle}>{t.missed}</Text>
               </View>
             </TouchableOpacity>
 
@@ -361,7 +480,7 @@ export default function PrayerTracker() {
               onPress={() => setModalVisible(false)}
               activeOpacity={0.7}
             >
-              <Text style={styles.cancelText}>❌ İptal</Text>
+              <Text style={styles.cancelText}>❌ {t.cancel}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -467,17 +586,17 @@ export default function PrayerTracker() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#FFF5F7',
   },
   header: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#EC4899',
     paddingTop: 55,
     paddingBottom: 18,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
-    shadowColor: '#8B5CF6',
+    shadowColor: '#EC4899',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -608,7 +727,7 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: 85,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#EC4899',
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
@@ -832,10 +951,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   helpModalCloseButton: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#EC4899',
     padding: 16,
     borderRadius: 15,
-    shadowColor: '#8B5CF6',
+    shadowColor: '#EC4899',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

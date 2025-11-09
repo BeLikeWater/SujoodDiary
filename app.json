@@ -26,6 +26,8 @@
       "bundleIdentifier": "com.muvasoft.SujoodDiary",
       "buildNumber": "2",
       "infoPlist": {
+        "NSCameraUsageDescription": "Sorumluluk fotoğraflarını çekmek için kamera erişimi gerekiyor.",
+        "NSPhotoLibraryUsageDescription": "Fotoğrafları kaydetmek için galeri erişimi gerekiyor.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSExceptionDomains": {
@@ -50,7 +52,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.muvasoft.SujoodDiary"
     },
     "web": {
       "favicon": "./assets/favicon.png"

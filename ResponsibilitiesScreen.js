@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
-// import * as ImagePicker from 'expo-image-picker';
-import { ref, set, push } from 'firebase/database';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert, Image, Modal } from 'react-native';
+import { launchCamera } from 'react-native-image-picker';
+import { ref, set, push, onValue, query, orderByChild, equalTo } from 'firebase/database';
 import { database, auth } from './firebaseConfig';
 
 const CATEGORIES = [
@@ -91,29 +91,55 @@ const CATEGORIES = [
 export default function ResponsibilitiesScreen() {
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   const [completedTasks, setCompletedTasks] = useState(new Set());
+  const [taskPhotos, setTaskPhotos] = useState({});
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  useEffect(() => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const photosRef = ref(database, `users/${userId}/responsibility_photos`);
+    const unsubscribe = onValue(photosRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const photos = {};
+        snapshot.forEach((childSnapshot) => {
+          const data = childSnapshot.val();
+          if (data.taskId) {
+            photos[data.taskId] = {
+              photo: data.photo,
+              timestamp: data.timestamp,
+              category: data.category,
+            };
+          }
+        });
+        setTaskPhotos(photos);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const takePhoto = async (task) => {
-    // Fotoğraf özelliği geçici olarak devre dışı
-    Alert.alert('Yakında! 📸', 'Fotoğraf çekme özelliği yakında eklenecek!');
-    
-    // TODO: expo-image-picker sorunları çözülünce tekrar aktif edilecek
-    /*
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('İzin Gerekli', 'Fotoğraf çekmek için kamera iznine ihtiyacımız var.');
+      const result = await launchCamera({
+        mediaType: 'photo',
+        cameraType: 'back',
+        quality: 0.5,
+        includeBase64: true,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      });
+
+      if (result.didCancel) {
         return;
       }
 
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.5,
-        base64: true,
-      });
+      if (result.errorCode) {
+        Alert.alert('Hata', result.errorMessage || 'Kamera açılamadı');
+        return;
+      }
 
-      if (!result.canceled && result.assets[0].base64) {
+      if (result.assets && result.assets[0] && result.assets[0].base64) {
         const userId = auth.currentUser?.uid;
         if (!userId) {
           Alert.alert('Hata', 'Giriş yapmalısınız');
@@ -139,7 +165,6 @@ export default function ResponsibilitiesScreen() {
       console.error('Fotoğraf çekme hatası:', error);
       Alert.alert('Hata', 'Fotoğraf çekilemedi');
     }
-    */
   };
 
   const toggleTask = (taskId) => {
@@ -158,7 +183,59 @@ export default function ResponsibilitiesScreen() {
   const progressPercent = Math.round((completedCount / selectedCategory.tasks.length) * 100);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <>
+      <Modal
+        visible={selectedPhoto !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedPhoto(null)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setSelectedPhoto(null)}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>
+                    {selectedPhoto?.task.emoji} {selectedPhoto?.task.title}
+                  </Text>
+                  <Text style={styles.modalCategory}>{selectedPhoto?.category}</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={() => setSelectedPhoto(null)}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {selectedPhoto && (
+                <Image
+                  source={{ uri: `data:image/jpeg;base64,${selectedPhoto.photo}` }}
+                  style={styles.modalImage}
+                  resizeMode="contain"
+                />
+              )}
+
+              <TouchableOpacity
+                style={styles.retakeModalButton}
+                onPress={() => {
+                  const task = selectedPhoto.task;
+                  setSelectedPhoto(null);
+                  setTimeout(() => takePhoto(task), 300);
+                }}
+              >
+                <Text style={styles.retakeModalButtonText}>📸 Yeni Fotoğraf Çek</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Sorumluluklarım</Text>
@@ -251,15 +328,48 @@ export default function ResponsibilitiesScreen() {
             <View style={styles.taskRight}>
               {completedTasks.has(task.id) && (
                 <>
-                  <TouchableOpacity
-                    style={styles.photoButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      takePhoto(task);
-                    }}
-                  >
-                    <Text style={styles.photoButtonText}>📸</Text>
-                  </TouchableOpacity>
+                  {taskPhotos[task.id] ? (
+                    <>
+                      <TouchableOpacity
+                        style={styles.photoPreview}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setSelectedPhoto({
+                            photo: taskPhotos[task.id].photo,
+                            task: task,
+                            category: selectedCategory.name,
+                          });
+                        }}
+                      >
+                        <Image
+                          source={{ uri: `data:image/jpeg;base64,${taskPhotos[task.id].photo}` }}
+                          style={styles.photoImage}
+                        />
+                        <View style={styles.photoOverlay}>
+                          <Text style={styles.photoOverlayText}>👁</Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.retakeButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          takePhoto(task);
+                        }}
+                      >
+                        <Text style={styles.retakeButtonText}>📸</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.photoButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        takePhoto(task);
+                      }}
+                    >
+                      <Text style={styles.photoButtonText}>📸</Text>
+                    </TouchableOpacity>
+                  )}
                   <Text style={styles.taskPoints}>+10 ⭐</Text>
                 </>
               )}
@@ -269,6 +379,7 @@ export default function ResponsibilitiesScreen() {
         <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
+    </>
   );
 }
 
@@ -403,6 +514,122 @@ const styles = StyleSheet.create({
   },
   photoButtonText: {
     fontSize: 18,
+  },
+  photoPreview: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(59, 130, 246, 0.9)',
+    borderRadius: 10,
+    padding: 2,
+  },
+  photoOverlayText: {
+    fontSize: 12,
+  },
+  retakeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  retakeButtonText: {
+    fontSize: 16,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  modalCategory: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: '#6B7280',
+    fontWeight: 'bold',
+  },
+  modalImage: {
+    width: '100%',
+    height: 400,
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+  retakeModalButton: {
+    backgroundColor: '#3B82F6',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  retakeModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   checkbox: {
     width: 24,
