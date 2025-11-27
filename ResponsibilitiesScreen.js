@@ -93,6 +93,19 @@ export default function ResponsibilitiesScreen() {
   const [completedTasks, setCompletedTasks] = useState(new Set());
   const [taskPhotos, setTaskPhotos] = useState({});
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [takePhotoEnabled, setTakePhotoEnabled] = useState(true);
+
+  // Realtime Database'den fotoğraf özelliğini al
+  useEffect(() => {
+    const configRef = ref(database, 'app_config/TakePhotoForTasks');
+    const unsubscribe = onValue(configRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setTakePhotoEnabled(snapshot.val());
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const userId = auth.currentUser?.uid;
@@ -328,47 +341,51 @@ export default function ResponsibilitiesScreen() {
             <View style={styles.taskRight}>
               {completedTasks.has(task.id) && (
                 <>
-                  {taskPhotos[task.id] ? (
+                  {takePhotoEnabled && (
                     <>
-                      <TouchableOpacity
-                        style={styles.photoPreview}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setSelectedPhoto({
-                            photo: taskPhotos[task.id].photo,
-                            task: task,
-                            category: selectedCategory.name,
-                          });
-                        }}
-                      >
-                        <Image
-                          source={{ uri: `data:image/jpeg;base64,${taskPhotos[task.id].photo}` }}
-                          style={styles.photoImage}
-                        />
-                        <View style={styles.photoOverlay}>
-                          <Text style={styles.photoOverlayText}>👁</Text>
-                        </View>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.retakeButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          takePhoto(task);
-                        }}
-                      >
-                        <Text style={styles.retakeButtonText}>📸</Text>
-                      </TouchableOpacity>
+                      {taskPhotos[task.id] ? (
+                        <>
+                          <TouchableOpacity
+                            style={styles.photoPreview}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setSelectedPhoto({
+                                photo: taskPhotos[task.id].photo,
+                                task: task,
+                                category: selectedCategory.name,
+                              });
+                            }}
+                          >
+                            <Image
+                              source={{ uri: `data:image/jpeg;base64,${taskPhotos[task.id].photo}` }}
+                              style={styles.photoImage}
+                            />
+                            <View style={styles.photoOverlay}>
+                              <Text style={styles.photoOverlayText}>👁</Text>
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.retakeButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              takePhoto(task);
+                            }}
+                          >
+                            <Text style={styles.retakeButtonText}>📸</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.photoButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            takePhoto(task);
+                          }}
+                        >
+                          <Text style={styles.photoButtonText}>📸</Text>
+                        </TouchableOpacity>
+                      )}
                     </>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.photoButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        takePhoto(task);
-                      }}
-                    >
-                      <Text style={styles.photoButtonText}>📸</Text>
-                    </TouchableOpacity>
                   )}
                   <Text style={styles.taskPoints}>+10 ⭐</Text>
                 </>

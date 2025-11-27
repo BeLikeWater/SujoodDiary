@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert, Modal, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function QuranScreen() {
@@ -8,7 +8,7 @@ export default function QuranScreen() {
 
   const [currentJuz, setCurrentJuz] = useState(1);
   const [progress, setProgress] = useState({});
-  const [inputPage, setInputPage] = useState('');
+  const [sliderValue, setSliderValue] = useState(0);
 
   const [showContinueSetup, setShowContinueSetup] = useState(false);
   const [continueJuz, setContinueJuz] = useState('');
@@ -25,6 +25,11 @@ export default function QuranScreen() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Slider değerini progress'e göre ayarla
+  useEffect(() => {
+    setSliderValue(progress[currentJuz] || 0);
+  }, [currentJuz, progress]);
 
   const loadData = async () => {
     try {
@@ -102,17 +107,24 @@ export default function QuranScreen() {
   };
 
 
-  const addReading = async () => {
-    if (!inputPage) {
-      Alert.alert('Eksik Bilgi', 'Lütfen sayfa numarasını girin.');
-      return;
-    }
-
-    const pageNum = parseInt(inputPage);
+  const incrementPage = () => {
     const maxPages = getJuzPages(currentJuz);
+    if (sliderValue < maxPages) {
+      setSliderValue(sliderValue + 1);
+    }
+  };
 
-    if (pageNum < 1 || pageNum > maxPages) {
-      Alert.alert('Hata', `${currentJuz}. cüzde sayfa numarası 1-${maxPages} arasında olmalıdır.`);
+  const decrementPage = () => {
+    if (sliderValue > 0) {
+      setSliderValue(sliderValue - 1);
+    }
+  };
+
+  const addReading = async () => {
+    const pageNum = Math.round(sliderValue);
+
+    if (pageNum < 1) {
+      Alert.alert('Bilgi', 'Lütfen sayfa seçin.');
       return;
     }
 
@@ -120,7 +132,6 @@ export default function QuranScreen() {
     newProgress[currentJuz] = pageNum;
     setProgress(newProgress);
     await saveData(newProgress);
-    setInputPage('');
 
     const points = pageNum * 5;
     Alert.alert(
@@ -131,7 +142,7 @@ export default function QuranScreen() {
 
   const selectJuz = (juzNum) => {
     setCurrentJuz(juzNum);
-    setInputPage('');
+    setSliderValue(progress[juzNum] || 0);
   };
 
   const getCurrentJuzProgress = () => {
@@ -336,25 +347,38 @@ export default function QuranScreen() {
             <Text style={styles.inputLabel}>
               Kaçıncı sayfaya kadar okudun?
             </Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.pageInput}
-                value={inputPage}
-                onChangeText={setInputPage}
-                keyboardType="number-pad"
-                placeholder="Sayfa numarası"
-                maxLength={3}
-              />
+
+            {/* Sayfa Seçici (+/- Butonlar) */}
+            <View style={styles.pageSelector}>
               <TouchableOpacity
-                style={styles.saveButton}
-                onPress={addReading}
+                style={[styles.pageButton, sliderValue <= 0 && styles.pageButtonDisabled]}
+                onPress={decrementPage}
+                disabled={sliderValue <= 0}
               >
-                <Text style={styles.saveButtonText}>Kaydet</Text>
+                <Text style={styles.pageButtonText}>−</Text>
+              </TouchableOpacity>
+
+              <View style={styles.pageDisplay}>
+                <Text style={styles.pageNumber}>{Math.round(sliderValue)}</Text>
+                <Text style={styles.pageTotal}>/ {getJuzPages(currentJuz)}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.pageButton, sliderValue >= getJuzPages(currentJuz) && styles.pageButtonDisabled]}
+                onPress={incrementPage}
+                disabled={sliderValue >= getJuzPages(currentJuz)}
+              >
+                <Text style={styles.pageButtonText}>+</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.inputHint}>
-              1-{getJuzPages(currentJuz)} arası sayfa girebilirsin
-            </Text>
+
+            {/* Kaydet Butonu */}
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={addReading}
+            >
+              <Text style={styles.saveButtonText}>✓ Kaydet</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -595,28 +619,60 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 12,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  inputRow: {
+  pageSelector: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    paddingHorizontal: 10,
   },
-  pageInput: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 2,
-    borderColor: '#E9D5FF',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
+  pageButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  pageButtonDisabled: {
+    backgroundColor: '#E5E7EB',
+    shadowOpacity: 0,
+  },
+  pageButtonText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  pageDisplay: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+  },
+  pageNumber: {
+    fontSize: 52,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  pageTotal: {
+    fontSize: 26,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#9CA3AF',
+    marginLeft: 8,
   },
   saveButton: {
     backgroundColor: '#8B5CF6',
-    borderRadius: 12,
+    borderRadius: 14,
+    paddingVertical: 16,
     paddingHorizontal: 30,
-    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -627,12 +683,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  inputHint: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 8,
-    fontStyle: 'italic',
   },
   juzListCard: {
     backgroundColor: '#FFFFFF',

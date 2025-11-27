@@ -1,71 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, I18nManager, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, Modal, TextInput } from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const translations = {
-  tr: {
-    settings: '⚙️ Ayarlar',
-    account: '👤 Hesap',
-    application: '🎨 Uygulama',
-    notifications: 'Bildirimler',
-    sounds: 'Sesler',
-    vibration: 'Titreşim',
-    darkMode: 'Karanlık Mod',
-    language: 'Dil',
-    turkish: 'Türkçe',
-    arabic: 'العربية (Arapça)',
-    content: '📚 İçerik',
-    prayerTimes: 'Namaz Vakitleri',
-    quranSettings: 'Kuran Okuma Ayarları',
-    goalSettings: 'Hedef Ayarları',
-    about: 'ℹ️ Hakkında',
-    appVersion: 'Uygulama Sürümü',
-    contactUs: 'Bize Ulaşın',
-    rateApp: 'Uygulamayı Değerlendir',
-    privacyPolicy: 'Gizlilik Politikası',
-    termsOfUse: 'Kullanım Şartları',
-    logout: 'Çıkış Yap',
-    logoutConfirm: 'Çıkış yapmak istediğine emin misin?',
-    cancel: 'İptal',
-    footer: 'Made with ❤️ for young Muslims',
-    istanbul: 'İstanbul',
-  },
-  ar: {
-    settings: '⚙️ الإعدادات',
-    account: '👤 الحساب',
-    application: '🎨 التطبيق',
-    notifications: 'الإشعارات',
-    sounds: 'الأصوات',
-    vibration: 'الاهتزاز',
-    darkMode: 'الوضع الداكن',
-    language: 'اللغة',
-    turkish: 'التركية',
-    arabic: 'العربية',
-    content: '📚 المحتوى',
-    prayerTimes: 'أوقات الصلاة',
-    quranSettings: 'إعدادات قراءة القرآن',
-    goalSettings: 'إعدادات الأهداف',
-    about: 'ℹ️ حول',
-    appVersion: 'إصدار التطبيق',
-    contactUs: 'اتصل بنا',
-    rateApp: 'قيم التطبيق',
-    privacyPolicy: 'سياسة الخصوصية',
-    termsOfUse: 'شروط الاستخدام',
-    logout: 'تسجيل الخروج',
-    logoutConfirm: 'هل أنت متأكد من تسجيل الخروج؟',
-    cancel: 'إلغاء',
-    footer: 'صنع بـ ❤️ للمسلمين الصغار',
-    istanbul: 'إسطنبول',
-  },
-};
 
 export default function SettingsScreen({ navigation }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
-  const [language, setLanguage] = useState('ar'); // 'tr' veya 'ar'
 
   const [showQuranSettings, setShowQuranSettings] = useState(false);
   const [pagesPerJuz, setPagesPerJuz] = useState('20');
@@ -103,15 +45,15 @@ export default function SettingsScreen({ navigation }) {
 
   const handleLogout = async () => {
     Alert.alert(
-      t.logout,
-      t.logoutConfirm,
+      'Çıkış Yap',
+      'Çıkış yapmak istediğine emin misin?',
       [
         {
-          text: t.cancel,
+          text: 'İptal',
           style: 'cancel',
         },
         {
-          text: t.logout,
+          text: 'Çıkış Yap',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -124,29 +66,6 @@ export default function SettingsScreen({ navigation }) {
       ]
     );
   };
-
-  const handleLanguageChange = () => {
-    Alert.alert(
-      language === 'tr' ? 'Dil Seçin' : 'اختر اللغة',
-      language === 'tr' ? 'Hangi dili kullanmak istersin?' : 'أي لغة تريد استخدامها؟',
-      [
-        {
-          text: language === 'tr' ? 'Türkçe' : 'التركية',
-          onPress: () => setLanguage('tr'),
-        },
-        {
-          text: language === 'tr' ? 'العربية (Arapça)' : 'العربية',
-          onPress: () => setLanguage('ar'),
-        },
-        {
-          text: language === 'tr' ? 'İptal' : 'إلغاء',
-          style: 'cancel',
-        },
-      ]
-    );
-  };
-
-  const t = translations[language];
 
   const SettingRow = ({ icon, title, value, onPress, showArrow = true, showSwitch = false, switchValue, onSwitchChange }) => (
     <TouchableOpacity 
@@ -217,12 +136,12 @@ export default function SettingsScreen({ navigation }) {
       </Modal>
 
       <View style={styles.header}>
-        <Text style={styles.title}>{t.settings}</Text>
+        <Text style={styles.title}>⚙️ Ayarlar</Text>
       </View>
 
       {/* Hesap Bilgileri */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.account}</Text>
+        <Text style={styles.sectionTitle}>👤 Hesap</Text>
         <View style={styles.card}>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{auth.currentUser?.displayName || 'Küçük Mümin'}</Text>
@@ -233,24 +152,17 @@ export default function SettingsScreen({ navigation }) {
 
       {/* Uygulama Ayarları */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.application}</Text>
+        <Text style={styles.sectionTitle}>🎨 Uygulama</Text>
         <View style={styles.card}>
           <SettingRow
-            icon="🌐"
-            title={t.language}
-            value={language === 'tr' ? t.turkish : t.arabic}
-            onPress={handleLanguageChange}
-          />
-          <View style={styles.divider} />
-          <SettingRow
             icon="🔔"
-            title={t.notifications}
+            title="Bildirimler"
             onPress={() => navigation.navigate('NotificationSettings')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="🔊"
-            title={t.sounds}
+            title="Sesler"
             showSwitch={true}
             switchValue={soundEnabled}
             onSwitchChange={setSoundEnabled}
@@ -258,7 +170,7 @@ export default function SettingsScreen({ navigation }) {
           <View style={styles.divider} />
           <SettingRow
             icon="📳"
-            title={t.vibration}
+            title="Titreşim"
             showSwitch={true}
             switchValue={vibrationEnabled}
             onSwitchChange={setVibrationEnabled}
@@ -266,7 +178,7 @@ export default function SettingsScreen({ navigation }) {
           <View style={styles.divider} />
           <SettingRow
             icon="🌙"
-            title={t.darkMode}
+            title="Karanlık Mod"
             showSwitch={true}
             switchValue={darkMode}
             onSwitchChange={setDarkMode}
@@ -276,25 +188,25 @@ export default function SettingsScreen({ navigation }) {
 
       {/* İçerik Ayarları */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.content}</Text>
+        <Text style={styles.sectionTitle}>📚 İçerik</Text>
         <View style={styles.card}>
           <SettingRow
             icon="🕌"
-            title={t.prayerTimes}
-            value={t.istanbul}
+            title="Namaz Vakitleri"
+            value="İstanbul"
             onPress={() => Alert.alert('Yakında', 'Bu özellik yakında eklenecek')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="📖"
-            title={t.quranSettings}
+            title="Kuran Okuma Ayarları"
             value={`${pagesPerJuz} sayfa/cüz`}
             onPress={() => setShowQuranSettings(true)}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="🎯"
-            title={t.goalSettings}
+            title="Hedef Ayarları"
             onPress={() => Alert.alert('Yakında', 'Bu özellik yakında eklenecek')}
           />
         </View>
@@ -302,52 +214,52 @@ export default function SettingsScreen({ navigation }) {
 
       {/* Hakkında */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t.about}</Text>
+        <Text style={styles.sectionTitle}>ℹ️ Hakkında</Text>
         <View style={styles.card}>
           <SettingRow
             icon="📱"
-            title={t.appVersion}
+            title="Uygulama Sürümü"
             value="1.1.0"
             showArrow={false}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="📧"
-            title={t.contactUs}
+            title="Bize Ulaşın"
             onPress={() => Alert.alert('İletişim', 'support@sujooddiary.com')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="⭐"
-            title={t.rateApp}
+            title="Uygulamayı Değerlendir"
             onPress={() => Alert.alert('Teşekkürler!', 'App Store\'a yönlendiriliyorsunuz...')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="📄"
-            title={t.privacyPolicy}
+            title="Gizlilik Politikası"
             onPress={() => Alert.alert('Yakında', 'Bu özellik yakında eklenecek')}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="📋"
-            title={t.termsOfUse}
+            title="Kullanım Şartları"
             onPress={() => Alert.alert('Yakında', 'Bu özellik yakında eklenecek')}
           />
         </View>
       </View>
 
       {/* Çıkış */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.logoutButton}
         onPress={handleLogout}
       >
         <Text style={styles.logoutIcon}>🚪</Text>
-        <Text style={styles.logoutText}>{t.logout}</Text>
+        <Text style={styles.logoutText}>Çıkış Yap</Text>
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>{t.footer}</Text>
+        <Text style={styles.footerText}>Made with ❤️ for young Muslims</Text>
       </View>
     </ScrollView>
   );
@@ -359,8 +271,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F9FF',
   },
   header: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 60,
+    paddingBottom: 20,
     backgroundColor: '#8B5CF6',
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
