@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, Modal, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -94,7 +95,8 @@ export default function SettingsScreen({ navigation }) {
   );
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      <ScrollView>
       {/* Kuran Ayarları Modal */}
       <Modal
         visible={showQuranSettings}
@@ -163,9 +165,10 @@ export default function SettingsScreen({ navigation }) {
           <SettingRow
             icon="🔊"
             title="Sesler"
-            showSwitch={true}
-            switchValue={soundEnabled}
-            onSwitchChange={setSoundEnabled}
+            // showSwitch={true}
+            // switchValue={soundEnabled}
+            // onSwitchChange={setSoundEnabled}
+            value={"Okyanus"}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -175,14 +178,14 @@ export default function SettingsScreen({ navigation }) {
             switchValue={vibrationEnabled}
             onSwitchChange={setVibrationEnabled}
           />
-          <View style={styles.divider} />
+          {/* <View style={styles.divider} />
           <SettingRow
             icon="🌙"
             title="Karanlık Mod"
             showSwitch={true}
             switchValue={darkMode}
             onSwitchChange={setDarkMode}
-          />
+          /> */}
         </View>
       </View>
 
@@ -203,12 +206,12 @@ export default function SettingsScreen({ navigation }) {
             value={`${pagesPerJuz} sayfa/cüz`}
             onPress={() => setShowQuranSettings(true)}
           />
-          <View style={styles.divider} />
+          {/* <View style={styles.divider} />
           <SettingRow
             icon="🎯"
             title="Hedef Ayarları"
             onPress={() => Alert.alert('Yakında', 'Bu özellik yakında eklenecek')}
-          />
+          /> */}
         </View>
       </View>
 
@@ -261,7 +264,8 @@ export default function SettingsScreen({ navigation }) {
       <View style={styles.footer}>
         <Text style={styles.footerText}>Made with ❤️ for young Muslims</Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

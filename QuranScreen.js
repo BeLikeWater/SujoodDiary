@@ -171,7 +171,7 @@ export default function QuranScreen() {
   const juzProgress = getCurrentJuzProgress();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* İlk Kurulum Modalı */}
       <Modal
         visible={showInitialSetup}
@@ -434,7 +434,7 @@ export default function QuranScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

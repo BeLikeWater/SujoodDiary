@@ -8,6 +8,7 @@ import {
   ScrollView,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from './firebaseConfig';
@@ -1122,6 +1123,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   todayButton: {
+    marginTop:10,
+    marginLeft:120,
+    marginRight:120,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 18,
     paddingVertical: 8,
