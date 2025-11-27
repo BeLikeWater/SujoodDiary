@@ -235,11 +235,11 @@ export default function ResponsibilitiesScreen() {
         </View>
       </Modal>
 
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Sorumluluklarım</Text>
-        <Text style={styles.headerSubtitle}>Her gün bir görev yap! 🌟</Text>
+        <Text style={styles.headerTitle}>🎯 Sorumluluklarım</Text>
+        <Text style={styles.headerSubtitle}>Her görev bir sevaptır! ⭐</Text>
       </View>
 
       {/* Category Tabs */}
@@ -378,7 +378,7 @@ export default function ResponsibilitiesScreen() {
         ))}
         <View style={styles.bottomPadding} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
     </>
   );
 }
@@ -386,40 +386,50 @@ export default function ResponsibilitiesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F0F9FF',
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-    backgroundColor: '#fff',
+    paddingTop: 60,
+    paddingBottom: 20,
+    backgroundColor: '#8B5CF6',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#E9D5FF',
     marginTop: 4,
+    textAlign: 'center',
   },
   categoryScroll: {
-    backgroundColor: '#fff',
+    backgroundColor: '#F0F9FF',
     maxHeight: 80,
+    marginTop: 15,
   },
   categoryContainer: {
     paddingHorizontal: 15,
-    paddingVertical: 15,
+    paddingVertical: 10,
   },
   categoryTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     marginHorizontal: 5,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   categoryEmoji: {
     fontSize: 20,
@@ -434,11 +444,18 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   progressContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 15,
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingVertical: 18,
+    borderRadius: 20,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -456,38 +473,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   progressBarBg: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
+    height: 10,
+    backgroundColor: '#E9D5FF',
+    borderRadius: 5,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 5,
   },
   taskList: {
     flex: 1,
-    paddingHorizontal: 15,
-    paddingTop: 15,
+    paddingHorizontal: 20,
+    paddingTop: 5,
   },
   taskCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   taskCardCompleted: {
     backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderWidth: 2,
+    borderColor: '#C4B5FD',
   },
   taskLeft: {
     flexDirection: 'row',
@@ -500,13 +517,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   photoButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3B82F6',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3B82F6',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -516,13 +533,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   photoPreview: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
-    borderWidth: 2,
-    borderColor: '#10B981',
+    borderWidth: 3,
+    borderColor: '#8B5CF6',
   },
   photoImage: {
     width: '100%',
@@ -532,7 +549,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: 'rgba(59, 130, 246, 0.9)',
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
     borderRadius: 10,
     padding: 2,
   },
@@ -540,13 +557,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   retakeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#3B82F6',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3B82F6',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -616,11 +633,11 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   retakeModalButton: {
-    backgroundColor: '#3B82F6',
-    padding: 15,
-    borderRadius: 12,
+    backgroundColor: '#8B5CF6',
+    padding: 16,
+    borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#3B82F6',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -632,11 +649,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: '#C4B5FD',
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -666,9 +683,9 @@ const styles = StyleSheet.create({
   taskPoints: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#F59E0B',
+    color: '#8B5CF6',
   },
   bottomPadding: {
-    height: 20,
+    height: 100,
   },
 });

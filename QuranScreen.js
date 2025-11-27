@@ -1,32 +1,115 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, Alert } from 'react-native';
-
-// Her cüzün sayfa sayısı (1-29: 20 sayfa, 30: 24 sayfa)
-const JUZ_PAGES = Array(30).fill(20);
-JUZ_PAGES[29] = 24; // 30. cüz 24 sayfa
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, Alert, Modal } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function QuranScreen() {
-  const [currentJuz, setCurrentJuz] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [progress, setProgress] = useState({
-    // Örnek: { 1: 5, 2: 12 } -> 1. cüzde 5 sayfa, 2. cüzde 12 sayfa okundu
-  });
+  const [showInitialSetup, setShowInitialSetup] = useState(false);
+  const [pagesPerJuz, setPagesPerJuz] = useState(20);
 
+  const [currentJuz, setCurrentJuz] = useState(1);
+  const [progress, setProgress] = useState({});
   const [inputPage, setInputPage] = useState('');
 
-  const completedPages = Object.values(progress).reduce((sum, pages) => sum + pages, 0);
-  const totalPages = 604;
-  const totalJuz = 30;
-  const completedJuz = Object.keys(progress).filter(juz => progress[juz] >= JUZ_PAGES[juz - 1]).length;
+  const [showContinueSetup, setShowContinueSetup] = useState(false);
+  const [continueJuz, setContinueJuz] = useState('');
+  const [continuePage, setContinuePage] = useState('');
 
-  const addReading = () => {
+  // Her cüzün sayfa sayısı
+  const getJuzPages = (juzNum) => {
+    if (juzNum === 30 && pagesPerJuz === 20) {
+      return 24; // 30. cüz standart hatimde 24 sayfa
+    }
+    return pagesPerJuz;
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const setupDone = await AsyncStorage.getItem('quran_setup_done');
+      const savedPagesPerJuz = await AsyncStorage.getItem('quran_pages_per_juz');
+      const savedProgress = await AsyncStorage.getItem('quran_progress');
+
+      if (savedPagesPerJuz) {
+        setPagesPerJuz(parseInt(savedPagesPerJuz));
+      }
+
+      if (savedProgress) {
+        setProgress(JSON.parse(savedProgress));
+      }
+
+      if (!setupDone) {
+        setShowInitialSetup(true);
+      }
+    } catch (error) {
+      console.error('Veri yükleme hatası:', error);
+    }
+  };
+
+  const saveData = async (newProgress) => {
+    try {
+      await AsyncStorage.setItem('quran_progress', JSON.stringify(newProgress));
+    } catch (error) {
+      console.error('Veri kaydetme hatası:', error);
+    }
+  };
+
+  const handleInitialChoice = async (isNewHatim) => {
+    if (isNewHatim) {
+      // Sıfırdan başlıyor
+      await AsyncStorage.setItem('quran_setup_done', 'true');
+      setShowInitialSetup(false);
+    } else {
+      // Devam eden hatim var
+      setShowInitialSetup(false);
+      setShowContinueSetup(true);
+    }
+  };
+
+  const handleContinueSetup = async () => {
+    const juz = parseInt(continueJuz);
+    const page = parseInt(continuePage);
+
+    if (!juz || juz < 1 || juz > 30) {
+      Alert.alert('Hata', 'Cüz numarası 1-30 arasında olmalıdır.');
+      return;
+    }
+
+    const maxPages = getJuzPages(juz);
+    if (!page || page < 1 || page > maxPages) {
+      Alert.alert('Hata', `Sayfa numarası 1-${maxPages} arasında olmalıdır.`);
+      return;
+    }
+
+    // Girilen noktaya kadar tüm cüz ve sayfaları doldur
+    const newProgress = {};
+
+    for (let i = 1; i < juz; i++) {
+      newProgress[i] = getJuzPages(i);
+    }
+
+    newProgress[juz] = page;
+
+    setProgress(newProgress);
+    await saveData(newProgress);
+    await AsyncStorage.setItem('quran_setup_done', 'true');
+    setShowContinueSetup(false);
+    setCurrentJuz(juz);
+
+    Alert.alert('Harika! 🎉', `${juz}. cüzün ${page}. sayfasından devam ediyorsun!`);
+  };
+
+
+  const addReading = async () => {
     if (!inputPage) {
       Alert.alert('Eksik Bilgi', 'Lütfen sayfa numarasını girin.');
       return;
     }
 
     const pageNum = parseInt(inputPage);
-    const maxPages = JUZ_PAGES[currentJuz - 1];
+    const maxPages = getJuzPages(currentJuz);
 
     if (pageNum < 1 || pageNum > maxPages) {
       Alert.alert('Hata', `${currentJuz}. cüzde sayfa numarası 1-${maxPages} arasında olmalıdır.`);
@@ -36,36 +119,133 @@ export default function QuranScreen() {
     const newProgress = { ...progress };
     newProgress[currentJuz] = pageNum;
     setProgress(newProgress);
-    setCurrentPage(pageNum);
+    await saveData(newProgress);
     setInputPage('');
 
     const points = pageNum * 5;
     Alert.alert(
-      'Tebrikler! 🌟', 
+      'Tebrikler! 🌟',
       `${currentJuz}. cüzün ${pageNum}. sayfasına kadar okudun!\n+${points} Sevap Puanı kazandın!`
     );
   };
 
   const selectJuz = (juzNum) => {
     setCurrentJuz(juzNum);
-    setCurrentPage(progress[juzNum] || 0);
     setInputPage('');
   };
 
   const getCurrentJuzProgress = () => {
     const read = progress[currentJuz] || 0;
-    const total = JUZ_PAGES[currentJuz - 1];
+    const total = getJuzPages(currentJuz);
     return { read, total, percent: Math.round((read / total) * 100) };
   };
 
+  const getTotalStats = () => {
+    let totalPagesRead = 0;
+    let completedJuzCount = 0;
+
+    for (let i = 1; i <= 30; i++) {
+      const read = progress[i] || 0;
+      const total = getJuzPages(i);
+      totalPagesRead += read;
+      if (read >= total) {
+        completedJuzCount++;
+      }
+    }
+
+    return { totalPagesRead, completedJuzCount };
+  };
+
+  const stats = getTotalStats();
   const juzProgress = getCurrentJuzProgress();
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* İlk Kurulum Modalı */}
+      <Modal
+        visible={showInitialSetup}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>📖</Text>
+            <Text style={styles.modalTitle}>Kuran Çizelgeme Hoş Geldin!</Text>
+            <Text style={styles.modalText}>
+              Hatmini takip etmeye başlayalım. Sıfırdan mı başlıyorsun yoksa devam eden bir hatmin mi var?
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalButtonPrimary}
+              onPress={() => handleInitialChoice(true)}
+            >
+              <Text style={styles.modalButtonPrimaryText}>✨ Sıfırdan Başlıyorum</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalButtonSecondary}
+              onPress={() => handleInitialChoice(false)}
+            >
+              <Text style={styles.modalButtonSecondaryText}>📚 Devam Eden Hatmim Var</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Devam Eden Hatim Kurulum Modalı */}
+      <Modal
+        visible={showContinueSetup}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>📍</Text>
+            <Text style={styles.modalTitle}>Kaldığın Yeri Söyle</Text>
+            <Text style={styles.modalText}>
+              Hangi cüzün kaçıncı sayfasındasın? Girdiğin noktaya kadar tüm sayfaları tamamlanmış olarak işaretleyeceğiz.
+            </Text>
+
+            <View style={styles.continueInputContainer}>
+              <View style={styles.continueInputWrapper}>
+                <Text style={styles.continueInputLabel}>Cüz</Text>
+                <TextInput
+                  style={styles.continueInput}
+                  value={continueJuz}
+                  onChangeText={setContinueJuz}
+                  keyboardType="number-pad"
+                  placeholder="1-30"
+                  maxLength={2}
+                />
+              </View>
+
+              <View style={styles.continueInputWrapper}>
+                <Text style={styles.continueInputLabel}>Sayfa</Text>
+                <TextInput
+                  style={styles.continueInput}
+                  value={continuePage}
+                  onChangeText={setContinuePage}
+                  keyboardType="number-pad"
+                  placeholder="1-20"
+                  maxLength={2}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalButtonPrimary}
+              onPress={handleContinueSetup}
+            >
+              <Text style={styles.modalButtonPrimaryText}>Devam Et</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Kuran Çizelgem</Text>
-        <Text style={styles.headerSubtitle}>Cüz cüz ilerle! 📖</Text>
+        <Text style={styles.headerTitle}>📖 Kuran Çizelgem</Text>
+        <Text style={styles.headerSubtitle}>Cüz cüz ilerle!</Text>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -73,17 +253,17 @@ export default function QuranScreen() {
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
             <Text style={styles.statEmoji}>📚</Text>
-            <Text style={styles.statNumber}>{completedPages}</Text>
+            <Text style={styles.statNumber}>{stats.totalPagesRead}</Text>
             <Text style={styles.statLabel}>Okunan Sayfa</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statEmoji}>✅</Text>
-            <Text style={styles.statNumber}>{completedJuz}/{totalJuz}</Text>
+            <Text style={styles.statNumber}>{stats.completedJuzCount}/30</Text>
             <Text style={styles.statLabel}>Tamamlanan Cüz</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statEmoji}>⭐</Text>
-            <Text style={styles.statNumber}>{completedPages * 5}</Text>
+            <Text style={styles.statNumber}>{stats.totalPagesRead * 5}</Text>
             <Text style={styles.statLabel}>Sevap Puanı</Text>
           </View>
         </View>
@@ -91,17 +271,17 @@ export default function QuranScreen() {
         {/* Cüz Seçimi */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Cüz Seç</Text>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.juzContainer}
           >
             {Array.from({ length: 30 }, (_, i) => i + 1).map((juzNum) => {
               const isSelected = currentJuz === juzNum;
               const juzRead = progress[juzNum] || 0;
-              const juzTotal = JUZ_PAGES[juzNum - 1];
+              const juzTotal = getJuzPages(juzNum);
               const isCompleted = juzRead >= juzTotal;
-              
+
               return (
                 <TouchableOpacity
                   key={juzNum}
@@ -141,7 +321,7 @@ export default function QuranScreen() {
           {/* İlerleme Çubuğu */}
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarBg}>
-              <View 
+              <View
                 style={[
                   styles.progressBarFill,
                   { width: `${juzProgress.percent}%` }
@@ -163,17 +343,17 @@ export default function QuranScreen() {
                 onChangeText={setInputPage}
                 keyboardType="number-pad"
                 placeholder="Sayfa numarası"
-                maxLength={2}
+                maxLength={3}
               />
-              <TouchableOpacity 
-                style={styles.saveButton} 
+              <TouchableOpacity
+                style={styles.saveButton}
                 onPress={addReading}
               >
                 <Text style={styles.saveButtonText}>Kaydet</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.inputHint}>
-              1-{JUZ_PAGES[currentJuz - 1]} arası sayfa girebilirsin
+              1-{getJuzPages(currentJuz)} arası sayfa girebilirsin
             </Text>
           </View>
         </View>
@@ -183,7 +363,7 @@ export default function QuranScreen() {
           <Text style={styles.sectionTitle}>Tüm Cüzler</Text>
           {Array.from({ length: 30 }, (_, i) => i + 1).map((juzNum) => {
             const juzRead = progress[juzNum] || 0;
-            const juzTotal = JUZ_PAGES[juzNum - 1];
+            const juzTotal = getJuzPages(juzNum);
             const percent = Math.round((juzRead / juzTotal) * 100);
             const isCompleted = juzRead >= juzTotal;
 
@@ -213,11 +393,11 @@ export default function QuranScreen() {
                 </View>
                 <View style={styles.juzListRight}>
                   <View style={styles.miniProgressBar}>
-                    <View 
+                    <View
                       style={[
                         styles.miniProgressFill,
                         { width: `${percent}%` },
-                        isCompleted && { backgroundColor: '#10B981' }
+                        isCompleted && { backgroundColor: '#8B5CF6' }
                       ]}
                     />
                   </View>
@@ -237,95 +417,100 @@ export default function QuranScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F0F9FF',
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-    backgroundColor: '#fff',
+    paddingTop: 60,
+    paddingBottom: 20,
+    backgroundColor: '#8B5CF6',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#E9D5FF',
     marginTop: 4,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,
   },
   statsContainer: {
     flexDirection: 'row',
-    padding: 15,
-    gap: 10,
+    padding: 20,
+    gap: 12,
   },
   statBox: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   statEmoji: {
     fontSize: 28,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#10B981',
-    marginBottom: 2,
+    color: '#8B5CF6',
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 11,
     color: '#6B7280',
     textAlign: 'center',
+    fontWeight: '600',
   },
   section: {
-    padding: 15,
+    padding: 20,
     paddingTop: 10,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1F2937',
-    marginBottom: 12,
+    marginBottom: 15,
   },
   juzContainer: {
     paddingVertical: 5,
   },
   juzButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    marginRight: 10,
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   juzButtonSelected: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
+    borderColor: '#8B5CF6',
+    backgroundColor: '#F3E8FF',
   },
   juzButtonCompleted: {
-    borderColor: '#10B981',
-    backgroundColor: '#ECFDF5',
+    borderColor: '#8B5CF6',
+    backgroundColor: '#E9D5FF',
   },
   juzNumber: {
     fontSize: 20,
@@ -333,14 +518,14 @@ const styles = StyleSheet.create({
     color: '#4B5563',
   },
   juzNumberSelected: {
-    color: '#3B82F6',
+    color: '#8B5CF6',
   },
   juzNumberCompleted: {
-    color: '#10B981',
+    color: '#7C3AED',
   },
   juzCheck: {
     fontSize: 16,
-    color: '#10B981',
+    color: '#8B5CF6',
     position: 'absolute',
     top: 4,
     right: 6,
@@ -350,18 +535,19 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     position: 'absolute',
     bottom: 4,
+    fontWeight: '600',
   },
   currentJuzCard: {
-    backgroundColor: '#fff',
-    margin: 15,
-    marginTop: 5,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    margin: 20,
+    marginTop: 10,
+    borderRadius: 20,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   currentJuzHeader: {
     flexDirection: 'row',
@@ -376,7 +562,7 @@ const styles = StyleSheet.create({
   },
   currentJuzPages: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#8B5CF6',
     fontWeight: '600',
   },
   progressBarContainer: {
@@ -384,14 +570,14 @@ const styles = StyleSheet.create({
   },
   progressBarBg: {
     height: 12,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E9D5FF',
     borderRadius: 6,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#10B981',
+    backgroundColor: '#8B5CF6',
     borderRadius: 6,
   },
   progressPercent: {
@@ -402,14 +588,14 @@ const styles = StyleSheet.create({
   },
   inputSection: {
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#E9D5FF',
     paddingTop: 20,
   },
   inputLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   inputRow: {
     flexDirection: 'row',
@@ -418,42 +604,49 @@ const styles = StyleSheet.create({
   pageInput: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#E9D5FF',
+    borderRadius: 12,
     padding: 14,
     fontSize: 16,
     fontWeight: '600',
+    color: '#1F2937',
   },
   saveButton: {
-    backgroundColor: '#10B981',
-    borderRadius: 10,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
     paddingHorizontal: 30,
     justifyContent: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   saveButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
   inputHint: {
     fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 6,
+    color: '#6B7280',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   juzListCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   juzListLeft: {
     flexDirection: 'row',
@@ -461,16 +654,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   juzListIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   juzListIconCompleted: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#E9D5FF',
   },
   juzListIconText: {
     fontSize: 18,
@@ -484,7 +677,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   juzListSubtitle: {
     fontSize: 13,
@@ -496,15 +689,15 @@ const styles = StyleSheet.create({
   },
   miniProgressBar: {
     width: 50,
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
+    height: 5,
+    backgroundColor: '#E9D5FF',
+    borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   miniProgressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#8B5CF6',
   },
   juzListPercent: {
     fontSize: 12,
@@ -512,6 +705,116 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   bottomPadding: {
-    height: 20,
+    height: 100,
+  },
+  // Modal Stilleri
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 25,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalEmoji: {
+    fontSize: 64,
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalButtonPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonSecondaryText: {
+    color: '#4B5563',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  continueInputContainer: {
+    flexDirection: 'row',
+    gap: 15,
+    marginBottom: 30,
+    width: '100%',
+  },
+  continueInputWrapper: {
+    flex: 1,
+  },
+  continueInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4B5563',
+    marginBottom: 8,
+  },
+  continueInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E9D5FF',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#1F2937',
+  },
+  settingsInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E9D5FF',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: '100%',
+    marginBottom: 30,
+    color: '#1F2937',
   },
 });

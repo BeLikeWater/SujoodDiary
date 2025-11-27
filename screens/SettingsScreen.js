@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, I18nManager } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, I18nManager, Modal, TextInput } from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const translations = {
   tr: {
@@ -65,6 +66,40 @@ export default function SettingsScreen({ navigation }) {
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [language, setLanguage] = useState('ar'); // 'tr' veya 'ar'
+
+  const [showQuranSettings, setShowQuranSettings] = useState(false);
+  const [pagesPerJuz, setPagesPerJuz] = useState('20');
+
+  useEffect(() => {
+    loadQuranSettings();
+  }, []);
+
+  const loadQuranSettings = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('quran_pages_per_juz');
+      if (saved) {
+        setPagesPerJuz(saved);
+      }
+    } catch (error) {
+      console.error('Kuran ayarları yüklenemedi:', error);
+    }
+  };
+
+  const handleSaveQuranSettings = async () => {
+    const pages = parseInt(pagesPerJuz);
+    if (!pages || pages < 1 || pages > 100) {
+      Alert.alert('Hata', 'Geçerli bir sayfa sayısı girin (1-100 arası)');
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem('quran_pages_per_juz', pagesPerJuz);
+      setShowQuranSettings(false);
+      Alert.alert('Başarılı', 'Kuran ayarları kaydedildi!');
+    } catch (error) {
+      Alert.alert('Hata', 'Ayarlar kaydedilemedi');
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -141,6 +176,46 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <ScrollView style={styles.container}>
+      {/* Kuran Ayarları Modal */}
+      <Modal
+        visible={showQuranSettings}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>📖</Text>
+            <Text style={styles.modalTitle}>Kuran Ayarları</Text>
+            <Text style={styles.modalText}>
+              Her cüzde kaç sayfa olsun?{'\n'}(Standart: 20, Bazı Kuranlar: 40)
+            </Text>
+
+            <TextInput
+              style={styles.settingsInput}
+              value={pagesPerJuz}
+              onChangeText={setPagesPerJuz}
+              keyboardType="number-pad"
+              placeholder="Sayfa sayısı"
+              maxLength={3}
+            />
+
+            <TouchableOpacity
+              style={styles.modalButtonPrimary}
+              onPress={handleSaveQuranSettings}
+            >
+              <Text style={styles.modalButtonPrimaryText}>Kaydet</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalButtonSecondary}
+              onPress={() => setShowQuranSettings(false)}
+            >
+              <Text style={styles.modalButtonSecondaryText}>İptal</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.header}>
         <Text style={styles.title}>{t.settings}</Text>
       </View>
@@ -213,7 +288,8 @@ export default function SettingsScreen({ navigation }) {
           <SettingRow
             icon="📖"
             title={t.quranSettings}
-            onPress={() => Alert.alert('Yakında', 'Bu özellik yakında eklenecek')}
+            value={`${pagesPerJuz} sayfa/cüz`}
+            onPress={() => setShowQuranSettings(true)}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -398,5 +474,89 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  // Modal Stilleri
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 25,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalEmoji: {
+    fontSize: 64,
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  settingsInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: '100%',
+    marginBottom: 30,
+    color: '#1F2937',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalButtonPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonSecondaryText: {
+    color: '#4B5563',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

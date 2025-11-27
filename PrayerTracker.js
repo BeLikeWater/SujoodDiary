@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,16 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db, auth } from './firebaseConfig';
 
 const translations = {
   tr: {
-    title: 'Namaz Takip',
-    subtitle: 'Namazlarını işaretle! 🕌',
+    title: '🕌 Namaz Takip',
+    subtitle: 'Her namaz bir nurdur! ⭐',
     week: 'Hafta',
     thisWeek: 'Bu Hafta',
     previousWeek: 'Önceki Hafta',
@@ -59,8 +62,8 @@ const translations = {
     },
   },
   ar: {
-    title: 'متابعة الصلاة',
-    subtitle: 'حدد صلواتك! 🕌',
+    title: '🕌 متابعة الصلاة',
+    subtitle: 'كل صلاة نور! ⭐',
     week: 'الأسبوع',
     thisWeek: 'هذا الأسبوع',
     previousWeek: 'الأسبوع السابق',
@@ -116,17 +119,46 @@ const PRAYER_STATUS = {
   CONGREGATION: 'congregation',
 };
 
+// Namaz ID'lerini kısa karakterlere dönüştür
+const PRAYER_SHORT_CODES = {
+  'fajr': 's',     // Sabah
+  'dhuhr': 'ö',    // Öğle
+  'asr': 'i',      // İkindi
+  'maghrib': 'a',  // Akşam
+  'isha': 'y'      // Yatsı
+};
+
+// Status'u sayıya dönüştür
+const STATUS_TO_NUMBER = {
+  'empty': 0,
+  'prayed': 1,
+  'congregation': 2,
+  'missed': 0  // Kaza da 0 olarak kaydedilecek (kılmadı anlamında)
+};
+
 export default function PrayerTracker() {
   const [selectedCell, setSelectedCell] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [prayerData, setPrayerData] = useState({});
   const [weekOffset, setWeekOffset] = useState(0);
-  const [language, setLanguage] = useState('ar');
+  const [language, setLanguage] = useState('tr'); // Default Türkçe
+  const [pointsModalVisible, setPointsModalVisible] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(null);
+  const [pointsInfoModalVisible, setPointsInfoModalVisible] = useState(false);
+
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadLanguage();
+    loadPrayersFromFirebase();
   }, []);
+
+  // Hafta değiştiğinde verileri yeniden yükle
+  useEffect(() => {
+    loadPrayersFromFirebase();
+  }, [weekOffset]);
 
   const loadLanguage = async () => {
     try {
@@ -136,6 +168,168 @@ export default function PrayerTracker() {
       }
     } catch (error) {
       console.error('Dil yükleme hatası:', error);
+    }
+  };
+
+  // Firestore'a namaz verisini kaydet
+  const savePrayerToFirebase = async (date, prayerId, status) => {
+    if (!auth.currentUser) {
+      console.log('Kullanıcı giriş yapmamış');
+      return;
+    }
+
+    try {
+      const userId = auth.currentUser.uid;
+      const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD formatı
+      const prayerCode = PRAYER_SHORT_CODES[prayerId];
+      const statusNumber = STATUS_TO_NUMBER[status];
+
+      // Document ID: userId_tarih_vakit (örn: abc123_2025-11-22_s)
+      const docId = `${userId}_${dateStr}_${prayerCode}`;
+      const prayerDocRef = doc(db, 'prayers', docId);
+
+      await setDoc(prayerDocRef, {
+        userId: userId,
+        date: dateStr,
+        prayer: prayerCode,
+        'operation-time': Date.now(),
+        status: statusNumber
+      });
+
+      console.log(`Namaz kaydedildi: ${dateStr} - ${prayerCode} - ${statusNumber}`);
+
+      // Haftalık puanı güncelle
+      await updateWeeklyPoints();
+    } catch (error) {
+      console.error('Firestore kaydetme hatası:', error);
+    }
+  };
+
+  // Haftalık puanları hesapla ve güncelle
+  const updateWeeklyPoints = async () => {
+    if (!auth.currentUser) return;
+
+    try {
+      const userId = auth.currentUser.uid;
+
+      // Bu haftanın başlangıç ve bitiş tarihlerini bul
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      monday.setHours(0, 0, 0, 0);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      const mondayStr = monday.toISOString().split('T')[0];
+      const sundayStr = sunday.toISOString().split('T')[0];
+
+      console.log(`Hafta aralığı: ${mondayStr} - ${sundayStr}`);
+
+      // Bu haftanın namazlarını çek
+      const prayersRef = collection(db, 'prayers');
+      const q = query(
+        prayersRef,
+        where('userId', '==', userId),
+        where('date', '>=', mondayStr),
+        where('date', '<=', sundayStr)
+      );
+
+      const querySnapshot = await getDocs(q);
+      let weeklyPoints = 0;
+
+      console.log(`Bulunan namaz sayısı: ${querySnapshot.size}`);
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.status === 1 || data.status === 2) {
+          let points = data.prayer === 's' ? 15 : 10;
+          if (data.status === 2) {
+            points += 5;
+          }
+          weeklyPoints += points;
+          console.log(`Namaz: ${data.prayer}, Status: ${data.status}, Puan: ${points}, Toplam: ${weeklyPoints}`);
+        }
+      });
+
+      // Kullanıcı belgesini güncelle
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const currentTotal = userDoc.data().sevapPoints || 0;
+        await setDoc(userDocRef, {
+          weeklyPoints: weeklyPoints,
+          sevapPoints: currentTotal,
+        }, { merge: true });
+        console.log(`✅ Haftalık puan güncellendi: ${weeklyPoints} (Firestore'a yazıldı)`);
+      } else {
+        console.log('❌ Kullanıcı belgesi bulunamadı!');
+      }
+    } catch (error) {
+      console.error('Haftalık puan güncelleme hatası:', error);
+    }
+  };
+
+  // Firestore'dan tüm namaz verilerini yükle
+  const loadPrayersFromFirebase = async () => {
+    if (!auth.currentUser) {
+      console.log('Kullanıcı giriş yapmamış');
+      return;
+    }
+
+    try {
+      const userId = auth.currentUser.uid;
+
+      // Bu haftanın tarih aralığını hesapla
+      const weekDatesForQuery = getWeekDates(weekOffset);
+      const startDate = weekDatesForQuery[0].toISOString().split('T')[0];
+      const endDate = weekDatesForQuery[6].toISOString().split('T')[0];
+
+      // Firestore query: kullanıcının bu haftaki namazları
+      const prayersQuery = query(
+        collection(db, 'prayers'),
+        where('userId', '==', userId),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+
+      const querySnapshot = await getDocs(prayersQuery);
+      const loadedPrayerData = {};
+
+      querySnapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        const date = new Date(data.date);
+        const prayerCode = data.prayer;
+
+        // Kısa kodu ID'ye dönüştür
+        const prayerId = Object.keys(PRAYER_SHORT_CODES).find(
+          key => PRAYER_SHORT_CODES[key] === prayerCode
+        );
+
+        if (prayerId) {
+          const prayerIndex = PRAYER_TIMES.findIndex(p => p.id === prayerId);
+          const dayIndex = getDayIndexFromDate(date);
+
+          if (prayerIndex !== -1 && dayIndex !== -1) {
+            const key = `${dayIndex}-${prayerIndex}`;
+
+            // Sayıyı status'e dönüştür
+            if (data.status === 1) {
+              loadedPrayerData[key] = PRAYER_STATUS.PRAYED;
+            } else if (data.status === 2) {
+              loadedPrayerData[key] = PRAYER_STATUS.CONGREGATION;
+            }
+          }
+        }
+      });
+
+      setPrayerData(loadedPrayerData);
+      console.log(`Firestore'dan ${querySnapshot.size} namaz verisi yüklendi`);
+    } catch (error) {
+      console.error('Firestore yükleme hatası:', error);
     }
   };
 
@@ -186,6 +380,15 @@ export default function PrayerTracker() {
 
   const weekDates = getWeekDates(weekOffset);
 
+  // Tarihten günün haftadaki indeksini bul
+  const getDayIndexFromDate = (date) => {
+    return weekDates.findIndex(d =>
+      d.getDate() === date.getDate() &&
+      d.getMonth() === date.getMonth() &&
+      d.getFullYear() === date.getFullYear()
+    );
+  };
+
   const goToPreviousWeek = () => {
     setWeekOffset(weekOffset - 1);
   };
@@ -235,17 +438,130 @@ export default function PrayerTracker() {
   const stats = getWeeklyStats();
 
   const handleStarPress = (dayIndex, prayerIndex) => {
-    setSelectedCell({ dayIndex, prayerIndex });
+    setSelectedCell({
+      dayIndex,
+      prayerIndex,
+      prayer: PRAYER_TIMES[prayerIndex]
+    });
     setModalVisible(true);
   };
 
-  const handleStatusSelect = (status) => {
+  // Puan hesaplama fonksiyonu
+  const calculatePoints = (prayerId, status, dayIndex) => {
+    if (status === PRAYER_STATUS.EMPTY || status === PRAYER_STATUS.MISSED) {
+      return null; // Puan yok
+    }
+
+    let basePoints = 0;
+    let bonusPoints = 0;
+    let details = [];
+
+    // Sabah namazı 15 puan, diğerleri 10 puan
+    if (prayerId === 'fajr') {
+      basePoints = 15;
+      details.push({ text: 'Sabah Namazı', icon: '🕊️', points: 15 });
+    } else {
+      basePoints = 10;
+      const prayerName = PRAYER_TIMES.find(p => p.id === prayerId)?.name || 'Namaz';
+      details.push({ text: prayerName, icon: '🌙', points: 10 });
+    }
+
+    // Cemaatle bonus
+    if (status === PRAYER_STATUS.CONGREGATION) {
+      bonusPoints += 5;
+      details.push({ text: 'Cemaatle Bonus', icon: '🤝', points: 5 });
+    }
+
+    // 5 vakit tam kontrol (bugün için)
+    const updatedPrayerData = {
+      ...prayerData,
+      [`${dayIndex}-${selectedCell.prayerIndex}`]: status
+    };
+
+    let dayPrayerCount = 0;
+    for (let i = 0; i < 5; i++) {
+      const key = `${dayIndex}-${i}`;
+      const prayerStatus = updatedPrayerData[key];
+      if (prayerStatus === PRAYER_STATUS.PRAYED || prayerStatus === PRAYER_STATUS.CONGREGATION) {
+        dayPrayerCount++;
+      }
+    }
+
+    let fullDayBonus = 0;
+    if (dayPrayerCount === 5) {
+      fullDayBonus = 20;
+      details.push({ text: '5 Vakit Tam Bonus', icon: '🏆', points: 20 });
+    }
+
+    return {
+      total: basePoints + bonusPoints + fullDayBonus,
+      details: details
+    };
+  };
+
+  const showPointsAnimation = (points) => {
+    setEarnedPoints(points);
+    setPointsModalVisible(true);
+
+    // Animasyonları sıfırla
+    scaleAnim.setValue(0);
+    fadeAnim.setValue(0);
+
+    // Animasyonları başlat
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // 3 saniye sonra otomatik kapat
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setPointsModalVisible(false);
+        setEarnedPoints(null);
+      });
+    }, 3000);
+  };
+
+  const handleStatusSelect = async (status) => {
     if (selectedCell) {
       const key = `${selectedCell.dayIndex}-${selectedCell.prayerIndex}`;
+
+      // Local state'i güncelle
       setPrayerData({
         ...prayerData,
         [key]: status,
       });
+
+      // Firebase'e kaydet
+      const date = weekDates[selectedCell.dayIndex];
+      const prayer = PRAYER_TIMES[selectedCell.prayerIndex];
+      await savePrayerToFirebase(date, prayer.id, status);
+
+      // Puan hesapla ve göster
+      const points = calculatePoints(prayer.id, status, selectedCell.dayIndex);
+      if (points) {
+        showPointsAnimation(points);
+      }
     }
     setModalVisible(false);
     setSelectedCell(null);
@@ -301,17 +617,8 @@ export default function PrayerTracker() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        {/* Info Butonu - Sağ Üst */}
-        {/* <TouchableOpacity 
-          style={styles.infoButton}
-          onPress={() => setHelpModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.infoButtonText}>ℹ️</Text>
-        </TouchableOpacity> */}
-
         {/* Önceki Hafta Butonu - Sol */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.navArrowButton}
           onPress={goToPreviousWeek}
           activeOpacity={0.7}
@@ -320,7 +627,7 @@ export default function PrayerTracker() {
         </TouchableOpacity>
 
         {/* Sonraki Hafta Butonu - Sağ */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.navArrowButton, styles.navArrowButtonRight]}
           onPress={goToNextWeek}
           activeOpacity={0.7}
@@ -328,14 +635,13 @@ export default function PrayerTracker() {
           <Text style={styles.navArrowText}>→</Text>
         </TouchableOpacity>
 
-        <Text style={styles.headerEmoji}>🕌</Text>
         <Text style={styles.title}>{t.title}</Text>
         <Text style={styles.weekRange}>{getWeekRange()}</Text>
-        
+
         {/* Bugün Butonu - Sadece farklı haftadaysa göster */}
         {weekOffset !== 0 && (
-          <TouchableOpacity 
-            style={styles.todayButton} 
+          <TouchableOpacity
+            style={styles.todayButton}
             onPress={goToCurrentWeek}
             activeOpacity={0.7}
           >
@@ -343,6 +649,15 @@ export default function PrayerTracker() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Puan Bilgi Butonu - Sağ Alt Köşe (Floating) */}
+      <TouchableOpacity
+        style={styles.pointsInfoButton}
+        onPress={() => setPointsInfoModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.pointsInfoButtonText}>⭐</Text>
+      </TouchableOpacity>
 
       {/* Tablo */}
       <ScrollView 
@@ -411,6 +726,150 @@ export default function PrayerTracker() {
         })}
       </ScrollView>
 
+      {/* Puan Modal */}
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={pointsModalVisible}
+        onRequestClose={() => setPointsModalVisible(false)}
+      >
+        <View style={styles.pointsModalOverlay}>
+          <Animated.View
+            style={[
+              styles.pointsModalContent,
+              {
+                transform: [{ scale: scaleAnim }],
+                opacity: fadeAnim,
+              }
+            ]}
+          >
+            <View style={styles.pointsModalHeader}>
+              <Text style={styles.pointsModalTitle}>🎉 Sevap Kazandın!</Text>
+            </View>
+
+            {earnedPoints && (
+              <>
+                {/* Detaylar */}
+                <View style={styles.pointsDetailsList}>
+                  {earnedPoints.details.map((detail, index) => (
+                    <View key={index} style={styles.pointsDetailItem}>
+                      <Text style={styles.pointsDetailIcon}>{detail.icon}</Text>
+                      <Text style={styles.pointsDetailText}>{detail.text}</Text>
+                      <Text style={styles.pointsDetailPoints}>+{detail.points}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Toplam */}
+                <View style={styles.pointsTotalContainer}>
+                  <Text style={styles.pointsTotalLabel}>Toplam Puan</Text>
+                  <Text style={styles.pointsTotalValue}>⭐ {earnedPoints.total}</Text>
+                </View>
+              </>
+            )}
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Puan Bilgi Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={pointsInfoModalVisible}
+        onRequestClose={() => setPointsInfoModalVisible(false)}
+      >
+        <View style={styles.infoModalOverlay}>
+          <View style={styles.infoModalContent}>
+            <View style={styles.infoModalHeader}>
+              <Text style={styles.infoModalTitle}>⭐ Sevap Puanları</Text>
+              <TouchableOpacity
+                style={styles.infoModalCloseButton}
+                onPress={() => setPointsInfoModalVisible(false)}
+              >
+                <Text style={styles.infoModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.infoModalDescription}>
+                Her namaz kıldığında sevap puanı kazanırsın! 🎉
+              </Text>
+
+              {/* Puan Tablosu */}
+              <View style={styles.pointsInfoTable}>
+                <View style={styles.pointsInfoRow}>
+                  <View style={styles.pointsInfoCell}>
+                    <Text style={styles.pointsInfoIcon}>🕊️</Text>
+                    <Text style={styles.pointsInfoLabel}>Sabah Namazı</Text>
+                  </View>
+                  <Text style={styles.pointsInfoValue}>15 puan</Text>
+                </View>
+
+                <View style={styles.pointsInfoDivider} />
+
+                <View style={styles.pointsInfoRow}>
+                  <View style={styles.pointsInfoCell}>
+                    <Text style={styles.pointsInfoIcon}>🌙</Text>
+                    <Text style={styles.pointsInfoLabel}>Diğer Vakitler</Text>
+                  </View>
+                  <Text style={styles.pointsInfoValue}>10 puan</Text>
+                </View>
+
+                <View style={styles.pointsInfoSubtext}>
+                  <Text style={styles.pointsInfoSubtextText}>
+                    (Öğle, İkindi, Akşam, Yatsı)
+                  </Text>
+                </View>
+
+                <View style={styles.pointsInfoDivider} />
+
+                <View style={styles.pointsInfoRow}>
+                  <View style={styles.pointsInfoCell}>
+                    <Text style={styles.pointsInfoIcon}>🤝</Text>
+                    <Text style={styles.pointsInfoLabel}>Cemaatle Bonus</Text>
+                  </View>
+                  <Text style={styles.pointsInfoValueBonus}>+5 puan</Text>
+                </View>
+
+                <View style={styles.pointsInfoDivider} />
+
+                <View style={styles.pointsInfoRow}>
+                  <View style={styles.pointsInfoCell}>
+                    <Text style={styles.pointsInfoIcon}>🏆</Text>
+                    <Text style={styles.pointsInfoLabel}>5 Vakit Tam Bonus</Text>
+                  </View>
+                  <Text style={styles.pointsInfoValueBonus}>+20 puan</Text>
+                </View>
+              </View>
+
+              {/* Örnek Hesaplama */}
+              <View style={styles.exampleBox}>
+                <Text style={styles.exampleTitle}>💡 Örnek Hesaplama</Text>
+                <View style={styles.exampleItem}>
+                  <Text style={styles.exampleText}>
+                    Sabah namazını cemaatle kılarsam:
+                  </Text>
+                  <Text style={styles.exampleCalc}>15 + 5 = <Text style={styles.exampleResult}>20 puan ⭐</Text></Text>
+                </View>
+                <View style={styles.exampleDivider} />
+                <View style={styles.exampleItem}>
+                  <Text style={styles.exampleText}>
+                    Günde 5 vakit namazı cemaatle kılarsam:
+                  </Text>
+                  <Text style={styles.exampleCalc}>(15+5) + (10+5)×4 + 20 = <Text style={styles.exampleResult}>100 puan ⭐</Text></Text>
+                </View>
+              </View>
+
+              <View style={styles.infoModalFooter}>
+                <Text style={styles.infoModalFooterText}>
+                  Her namaz bir nurdur, her sevap bir kazançtır! 🌟
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Namaz Durumu Modal */}
       <Modal
         animationType="slide"
@@ -425,7 +884,7 @@ export default function PrayerTracker() {
         >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>🕌 {t.selectAction}</Text>
-            <Text style={styles.modalSubtitle}>{selectedCell?.prayer.name}</Text>
+            <Text style={styles.modalSubtitle}>{selectedCell?.prayer?.name || ''}</Text>
 
             <TouchableOpacity
               style={[styles.modalOption, styles.modalOptionRed]}
@@ -586,17 +1045,17 @@ export default function PrayerTracker() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF5F7',
+    backgroundColor: '#F0F9FF',
   },
   header: {
-    backgroundColor: '#EC4899',
+    backgroundColor: '#8B5CF6',
     paddingTop: 55,
     paddingBottom: 18,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
-    shadowColor: '#EC4899',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -663,18 +1122,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   todayButton: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 15,
-    shadowColor: '#F59E0B',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 4,
     elevation: 4,
   },
   todayButtonText: {
-    color: '#FFFFFF',
+    color: '#8B5CF6',
     fontWeight: 'bold',
     fontSize: 13,
   },
@@ -727,7 +1186,7 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: 85,
-    backgroundColor: '#EC4899',
+    backgroundColor: '#8B5CF6',
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
@@ -951,10 +1410,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   helpModalCloseButton: {
-    backgroundColor: '#EC4899',
+    backgroundColor: '#8B5CF6',
     padding: 16,
     borderRadius: 15,
-    shadowColor: '#EC4899',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -965,5 +1424,248 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  // Puan Modal Stilleri
+  pointsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pointsModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 25,
+    padding: 25,
+    width: '85%',
+    maxWidth: 400,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  pointsModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  pointsModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+    textAlign: 'center',
+  },
+  pointsDetailsList: {
+    marginBottom: 20,
+  },
+  pointsDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 10,
+  },
+  pointsDetailIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  pointsDetailText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  pointsDetailPoints: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  pointsTotalContainer: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+  },
+  pointsTotalLabel: {
+    fontSize: 14,
+    color: '#E9D5FF',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  pointsTotalValue: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  // Puan Bilgi Butonu Stilleri
+  pointsInfoButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pointsInfoButtonText: {
+    fontSize: 24,
+  },
+  // Puan Bilgi Modal Stilleri
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  infoModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+    maxHeight: '90%',
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E9D5FF',
+  },
+  infoModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  infoModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoModalCloseText: {
+    fontSize: 20,
+    color: '#6B7280',
+    fontWeight: 'bold',
+  },
+  infoModalDescription: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  pointsInfoTable: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+  },
+  pointsInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  pointsInfoCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  pointsInfoIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  pointsInfoLabel: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  pointsInfoValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  pointsInfoValueBonus: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#10B981',
+  },
+  pointsInfoDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 8,
+  },
+  pointsInfoSubtext: {
+    paddingLeft: 40,
+    marginTop: -5,
+    marginBottom: 5,
+  },
+  pointsInfoSubtextText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+  exampleBox: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+  },
+  exampleTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 15,
+  },
+  exampleItem: {
+    marginBottom: 10,
+  },
+  exampleText: {
+    fontSize: 14,
+    color: '#78350F',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  exampleCalc: {
+    fontSize: 15,
+    color: '#92400E',
+    fontWeight: '600',
+    paddingLeft: 10,
+  },
+  exampleResult: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  exampleDivider: {
+    height: 1,
+    backgroundColor: '#FDE68A',
+    marginVertical: 12,
+  },
+  infoModalFooter: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+  },
+  infoModalFooterText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

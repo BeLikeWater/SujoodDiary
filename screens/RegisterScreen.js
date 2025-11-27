@@ -20,11 +20,12 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [groupCode, setGroupCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
     // Validation
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password || !confirmPassword || !groupCode) {
       Alert.alert('Hata', 'Lütfen tüm alanları doldurun');
       return;
     }
@@ -54,8 +55,10 @@ export default function RegisterScreen({ navigation }) {
       await setDoc(doc(db, 'users', user.uid), {
         name: name,
         email: email,
+        groupCode: groupCode.toUpperCase().trim(),
         createdAt: new Date().toISOString(),
         sevapPoints: 0,
+        weeklyPoints: 0,
         degree: 'Yeni Başlayan',
         avatar: {
           character: '🧒',
@@ -167,6 +170,21 @@ export default function RegisterScreen({ navigation }) {
                 editable={!loading}
               />
             </View>
+
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputLabel}>👥 Grup Kodu</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Örn: AILE2024"
+                value={groupCode}
+                onChangeText={setGroupCode}
+                autoCapitalize="characters"
+                editable={!loading}
+              />
+              <Text style={styles.inputHint}>
+                Ailenle veya arkadaşlarınla yarışmak için grup kodu gir
+              </Text>
+            </View>
           </View>
 
           {/* Register Button */}
@@ -242,6 +260,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
+  },
+  inputHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   input: {
     backgroundColor: '#FFFFFF',
